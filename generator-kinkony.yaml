@@ -1,0 +1,631 @@
+esphome:
+  name: generator-kincony
+  friendly_name: generator_kincony
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "T9fa6qYlYyhYw6loe/eViMVUjRmOUL+ZUb6SkMgotIM="
+
+ota:
+  - platform: esphome
+    password: "404cf524fc7aa17bb1a2bcac99fdba7b"
+
+wifi:
+  ssid: "SorokNET"
+  password: "48239400"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Generator-Kincony"
+    password: "Cm9cuvbfV4kR"
+
+captive_portal:
+    
+external_components:
+  - source:
+      type: local
+      path: components
+  - source: /config/esphome/my_esphome_components/components
+
+
+##substitutions:
+#  device_name: mq9_test
+#  name: MQ9
+#  platform: ESP32
+#  board: esp32dev
+
+  # MQ9 (custom_components/mq9)
+#  mq9_sensor_pin: GPIO35
+#  mq9_update_interval: "2000"
+
+  # MQ9_base (components/mq)
+#  mq_pin: GPIO35
+#  mq_update_interval: 2s
+
+#packages:
+#  #config_base: !include common/config_base.yaml
+#  mq9_base: !include common/mq9_base.yaml
+#  # mq9_base: !include custom_components/mq9/mq9.yaml
+
+ # Basic Config
+
+
+
+uart:
+  - id: rs485
+    tx_pin: GPIO27
+    rx_pin: GPIO14
+    baud_rate: 9600
+    stop_bits: 1
+    data_bits: 8
+    parity: NONE
+    #debug:
+    #  direction: BOTH
+    #  dummy_receiver: false
+
+  - id: rs232
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 9600
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+  # cs pin: GPIO5
+
+i2c:
+  sda: GPIO4
+  scl:
+    number: GPIO15
+    ignore_strapping_warning: true
+
+pcf8574:
+  - id: inputs
+    address: 0x22
+  - id: outputs
+    address: 0x24
+
+time:
+  - platform: ds1307
+    id: rtc_time
+
+one_wire:
+  - platform: gpio
+    pin: GPIO32
+
+modbus:
+  - uart_id: rs485
+    id: modbus_client
+    # flow_control_pin: 
+    #   number: GPIO4
+    #   inverted: false  #не нужен, так как поток автоматически меняется
+
+modbus_controller:
+  - id: modbus_sinotimer
+    address: 15
+    modbus_id: modbus_client
+    setup_priority: -10
+    update_interval: 10s  # Опрашивать устройство каждые 10 секунд
+    on_online:
+      then:
+        - logger.log: "Sinotimer Controller back online!"
+    on_offline:
+      then:
+        - logger.log: "Sinotimer Controller goes offline!"
+        - lambda: |-
+            ESP_LOGI("","Lambda offline message. function_code=%d, address=%d",function_code,address);
+
+  - id: modbus_gen_temp
+    address: 0x1
+    modbus_id: modbus_client
+    setup_priority: -10
+    update_interval: 10s  # Опрашивать устройство каждые 10 секунд
+    on_online:
+      then:
+        - logger.log: "Gen Temperature Controller back online!"
+    on_offline:
+      then:
+        - logger.log: "Gen Temperature Controller goes offline!"
+        - lambda: |-
+            ESP_LOGI("","Lambda offline message. function_code=%d, address=%d",function_code,address);
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_gen_temp
+    name: gen_temperature
+    id: gen_temperature
+    register_type: holding
+    address: 0
+    value_type: S_WORD
+    unit_of_measurement: "C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+      - quantile:
+          window_size: 10
+          send_every: 6
+          send_first_at: 3
+          quantile: 0.8
+    lambda: |-
+      if( id(modbus_gen_temp).get_module_offline() )
+        return 0;
+      else
+        return x ;
+
+           
+  - platform: modbus_controller
+    modbus_controller_id: modbus_sinotimer
+    name: sinotimer_voltage
+    id: sinotimer_voltage
+    register_type: read
+    address: 0
+    value_type: FP32
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 1
+      - quantile:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+          quantile: 0.9
+    lambda: |-
+      if( id(modbus_sinotimer).get_module_offline() )
+        return 0;
+      else
+        return x ;
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_sinotimer
+    name: sinotimer_current
+    id: sinotimer_current
+    register_type: read
+    address: 0x0008
+    value_type: FP32
+    unit_of_measurement: "A"
+    accuracy_decimals: 2
+    filters:
+      - multiply: 1
+      - quantile:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+          quantile: 0.9
+    lambda: |-
+      if( id(modbus_sinotimer).get_module_offline() )
+        return 0;
+      else
+        return x ;
+
+  - platform: modbus_controller
+    modbus_controller_id: modbus_sinotimer
+    name: sinotimer_freq
+    id: sinotimer_freq
+    register_type: read
+    address: 0x0036
+    value_type: FP32
+    unit_of_measurement: "Hz"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 1
+      - quantile:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+          quantile: 0.9
+    lambda: |-
+      if( id(modbus_sinotimer).get_module_offline() )
+        return 0;
+      else
+        return x ;
+  
+  - platform: modbus_controller
+    modbus_controller_id: modbus_sinotimer
+    name: sinotimer_power
+    id: sinotimer_power
+    register_type: read
+    address: 0x0012
+    value_type: FP32
+    unit_of_measurement: "W"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 1
+      - quantile:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+          quantile: 0.9
+    lambda: |-
+      if( id(modbus_sinotimer).get_module_offline() )
+        return 0;
+      else
+        return x ;
+  
+  - platform: modbus_controller
+    modbus_controller_id: modbus_sinotimer
+    name: sinotimer_total_power
+    id: sinotimer_total_power
+    register_type: read
+    address: 0x0100
+    value_type: FP32
+    unit_of_measurement: "Wh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 1
+      - quantile:
+          window_size: 7
+          send_every: 4
+          send_first_at: 3
+          quantile: 0.9
+    lambda: |-
+      if( id(modbus_sinotimer).get_module_offline() )
+        return 0;
+      else
+        return x ;
+          
+  - platform: template
+    name: kincony_test_sensor
+    id: kincony_test_sensor
+    #lambda: |-
+    #  return id(pzem_data).state;
+    update_interval: 10s
+
+    
+  - platform: dallas_temp
+    #one_wire_id: oneWire_IO1
+    #address: 0x163cf9f648dc5a28
+    #address: 0x6002139177260628
+    name: kincony_temp
+    update_interval: 30s
+
+  - platform: wifi_signal
+    name: kincony_WiFi_Signal
+    update_interval: 6s
+    filters:
+      - quantile:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
+          quantile: 0.9
+
+    
+  - platform: uptime
+    name: kincony_Uptime
+    icon: mdi:clock-outline
+    update_interval: 60s
+
+  - platform: adc
+    pin: GPIO36
+    name: "kincony_ai1"
+    id: kincony_ai1
+    update_interval: 1s
+    accuracy_decimals: 1
+    raw: true
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            # Формат: [необработанное значение, реальное значение]
+            - 0 -> 0
+            - 10 -> 1.3      
+            - 1660 -> 7.83      
+            - 1910 -> 9.06     
+            - 2153 -> 10.02     
+            - 2394 -> 11.03
+            - 2638 -> 11.98
+            - 2891 -> 13.03
+            - 3141 -> 14.03
+            - 3388 -> 15.176
+            - 3638 -> 16.1    
+      #- multiply: 0.0045564821834723 # 0.00038488  # 1.558/4048
+      - quantile:
+          window_size: 3
+          send_every: 3
+          send_first_at: 1
+          quantile: 0.9
+
+  - platform: adc
+    pin: GPIO39
+    name: "kincony_ai2"
+    id: kincony_ai2
+    update_interval: 1s
+    accuracy_decimals: 1
+    raw: true
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            # Формат: [необработанное значение, реальное значение]
+            - 0 -> 0
+            - 10 -> 1.3      
+            - 1660 -> 7.83      
+            - 1910 -> 9.06     
+            - 2153 -> 10.02     
+            - 2394 -> 11.03
+            - 2638 -> 11.98
+            - 2891 -> 13.03
+            - 3141 -> 14.03
+            - 3388 -> 15.176
+            - 3638 -> 16.1    
+      #- multiply: 0.0045564821834723 # 0.00038488  # 1.558/4048
+      - quantile:
+          window_size: 3
+          send_every: 3
+          send_first_at: 1
+          quantile: 0.9
+
+  - platform: adc
+    pin: GPIO34
+    name: "kincony_ai3"
+    id: kincony_ai3
+    update_interval: 1s
+    accuracy_decimals: 1
+    raw: true
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            # Формат: [необработанное значение, реальное значение]
+            - 0 -> 0
+            - 10 -> 1.3      
+            - 1660 -> 7.83      
+            - 1910 -> 9.06     
+            - 2153 -> 10.02     
+            - 2394 -> 11.03
+            - 2638 -> 11.98
+            - 2891 -> 13.03
+            - 3141 -> 14.03
+            - 3388 -> 15.176
+            - 3638 -> 16.1    
+      #- multiply: 0.0045564821834723 # 0.00038488  # 1.558/4048
+      - quantile:
+          window_size: 3
+          send_every: 3
+          send_first_at: 1
+          quantile: 0.9
+
+  - platform: adc
+    pin: GPIO35
+    name: "kincony_ai4"
+    id: kincony_ai4
+    update_interval: 1s
+    accuracy_decimals: 1
+    raw: true
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            # Формат: [необработанное значение, реальное значение]
+            - 0 -> 0
+            - 10 -> 1.3      
+            - 1660 -> 7.83      
+            - 1910 -> 9.06     
+            - 2153 -> 10.02     
+            - 2394 -> 11.03
+            - 2638 -> 11.98
+            - 2891 -> 13.03
+            - 3141 -> 14.03
+            - 3388 -> 15.176
+            - 3638 -> 16.1    
+      #- multiply: 0.0045564821834723 # 0.00038488  # 1.558/4048
+      - quantile:
+          window_size: 3
+          send_every: 3
+          send_first_at: 1
+          quantile: 0.9
+
+  - platform: template
+    name: "Generator regime"
+    id: generator_regime
+    accuracy_decimals: 0
+    unit_of_measurement: "reg"
+    icon: "mdi:counter"
+
+  - platform: template
+    name: "Generator regime step"
+    id: generator_regime_step
+    accuracy_decimals: 0
+    unit_of_measurement: "step"
+    icon: "mdi:counter"
+
+  - platform: template
+    name: "Generator Timeout"
+    id: generator_timeout
+    accuracy_decimals: 0
+    unit_of_measurement: "сек"
+    icon: "mdi:timer"
+
+binary_sensor:
+  # Датчик контроля наличия связи с модулем PZEM modbus
+  - platform: template
+    name: "sinotimer_valid"
+    id: pzem_valid
+    lambda: |-
+      if( id(modbus_sinotimer).get_module_offline() )
+        return false;
+      else
+        return true;
+
+  - platform: gpio
+    name: "KC868-A6-IN-1"
+    id: kc868_a6_in_1
+    pin:
+      pcf8574: inputs
+      number: 0
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-IN-2"
+    id: kc868_a6_in_2
+    pin:
+      pcf8574: inputs
+      number: 1
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-IN-3"
+    id: kc868_a6_in_3
+    pin:
+      pcf8574: inputs
+      number: 2
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-IN-4"
+    id: kc868_a6_in_4
+    pin:
+      pcf8574: inputs
+      number: 3
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-IN-5"
+    id: kc868_a6_in_5
+    pin:
+      pcf8574: inputs
+      number: 4
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-IN-6"
+    id: kc868_a6_in_6
+    pin:
+      pcf8574: inputs
+      number: 5
+      mode: INPUT
+      inverted: true
+
+button:
+  - platform: template
+    name: "Generator Air Close"
+    id: air_close
+    on_press:
+      - switch.turn_on: relay_4
+      - delay: 500ms
+      - switch.turn_off: relay_4
+ 
+  - platform: template
+    name: "Generator Air Open"
+    id: air_open
+    on_press:
+      - switch.turn_on: relay_5
+      - delay: 500ms
+      - switch.turn_off: relay_5
+  
+switch:
+  - platform: gpio
+    name: "Kincony fake switch"
+    id: kincony_fake_sw_1
+    pin: GPIO2
+
+  - platform: gpio
+    name: "KC868-A6-RELAY-1"
+    id: relay_1
+    pin:
+      pcf8574: outputs
+      number: 0
+      mode: OUTPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-RELAY-2"
+    id: relay_2
+    pin:
+      pcf8574: outputs
+      number: 1
+      mode: OUTPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-RELAY-3"
+    id: relay_3
+    pin:
+      pcf8574: outputs
+      number: 2
+      mode: OUTPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-RELAY-4"
+    id: relay_4
+    pin:
+      pcf8574: outputs
+      number: 3
+      mode: OUTPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-RELAY-5"
+    id: relay_5
+    pin:
+      pcf8574: outputs
+      number: 4
+      mode: OUTPUT
+      inverted: true
+  - platform: gpio
+    name: "KC868-A6-RELAY-6"
+    id: relay_6
+    pin:
+      pcf8574: outputs
+      number: 5
+      mode: OUTPUT
+      inverted: true
+          
+    # Виртуальный переключатель для активации последовательности
+  - platform: template
+    name: "Внешнее управление генератором"
+    id: sequence_mode
+    optimistic: true
+
+  - platform: template
+    name: "AC_On"
+    id: generator_ac_on
+    optimistic: true
+        
+# Создаем глобальную переменную для отслеживания состояния
+globals:
+  - id: sequence_running
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+      
+# Используем наш компонент с прямой конфигурацией
+generator_control:
+  id: my_generator
+  control_switch: sequence_mode # виртуальный переключатель режимов работы 
+  control_ac: generator_ac_on
+  # !!! Порядок менять нельзя удалять и добавлять в конец 
+  relays:
+    - relay_1           # топливный клапан
+    - relay_2           # включение зажигания
+    - relay_3           # стартер
+    - relay_4           # заслонку закрыть
+    - relay_5           # заслонку открыть
+    - relay_6           # включение нагрузки
+  buttons:
+    - air_close         # импульс закрытия заслонки
+    - air_open          # импульс открытия заслонки
+  analog_sensors:
+    - kincony_ai1       # контроль напряжения питания  12v
+    - kincony_ai2       # контроль напряжения аккумулятора 12v
+    - kincony_ai3       # контроль запуска генератора по напряжению 12v
+    - kincony_ai4
+  binary_sensors:
+    - kc868_a6_in_1     # положение переключателя в Off 
+    - kc868_a6_in_2     # положение переключателя в Авто
+    - kc868_a6_in_3     
+    - kc868_a6_in_4
+    - kc868_a6_in_5     # заслонка закрыта
+    - kc868_a6_in_6     # заслонка открыта
+
+  output_sensors:
+    - generator_regime
+    - generator_regime_step
+    - generator_timeout
