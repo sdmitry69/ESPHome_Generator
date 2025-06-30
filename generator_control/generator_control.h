@@ -61,6 +61,7 @@
 #define GC_IN4                      3
 #define GC_IN5                      4
 #define GC_IN6                      5
+#define GC_IN_AC_CTRL               6
 
 #define GC_VAL_REGIME               0
 #define GC_VAL_REGSTEP              1
@@ -101,6 +102,7 @@ class GeneratorControl : public Component {
   float get_analog_value(size_t index) const;
   bool get_binary_value(size_t index) const;
   float get_modbus_value(size_t index) const;
+  bool is_binary_valid(size_t index) const;
 
  protected:
   void start_sequence();
@@ -133,6 +135,7 @@ class GeneratorControl : public Component {
   uint32_t last_step_time_{0};
   uint32_t twait_{0};
   uint32_t twaitcmd{0};
+  uint32_t tsync_ha_flags{0};
   int restart{0};
   int val_timeout{0};
 };

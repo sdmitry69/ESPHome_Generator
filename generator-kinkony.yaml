@@ -139,6 +139,13 @@ modbus_controller:
         - lambda: |-
             ESP_LOGI("","Lambda offline message. function_code=%d, address=%d",function_code,address);
 
+homeassistant:
+  # Двоичные датчики из Home Assistant
+  binary_sensor:
+    - id: ha_voltage380_flag
+      name: "Voltage 380V Flag"
+      entity_id: input_boolean.voltage380_flag
+
 sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_gen_temp
@@ -624,6 +631,7 @@ generator_control:
     - kc868_a6_in_4
     - kc868_a6_in_5     # заслонка закрыта
     - kc868_a6_in_6     # заслонка открыта
+    - ha_voltage380_flag  # флаг нормальности сетевого напряжения 
 
   output_sensors:
     - generator_regime

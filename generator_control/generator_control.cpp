@@ -10,13 +10,12 @@ static const char *TAG = "generator_control";
 void GeneratorControl::setup() 
 {
   // Выключаем все реле при старте
-  for (auto relay : this->relays_) {
-    relay->turn_off();
-  }
+  for (auto relay : this->relays_) { relay->turn_off(); }
   
   this->set_output_value(GC_VAL_REGIME, (float)this->current_regime_);
   this->set_output_value(GC_VAL_REGSTEP, (float)this->current_step_);
   this->set_output_value(GC_VAL_TIMEOUT, (float)0 );
+  this->tsync_ha_flags=millis()+15000; // опрос через 15 секунд
 }
 
 void GeneratorControl::loop() 
@@ -24,6 +23,16 @@ void GeneratorControl::loop()
     
   bool current_control_state = this->control_switch_->state;
   bool current_control_ac = this->control_ac_->state;
+
+  if( this->tsync_ha_flags<millis() )
+  {
+    if( this->is_binary_valid(GC_IN_AC_CTRL) )
+    {
+      if( this->get_binary_value(GC_IN_AC_CTRL) ) this->control_ac_->turn_on();
+      else                                        this->control_ac_->turn_off();
+    }
+    this->tsync_ha_flags=millis()+60000; // переопрос раз в минуту 
+  }
   
   // Если поступила команда на изменение режима работы
   if( current_control_state != this->last_control_state_ ) 
@@ -81,12 +90,18 @@ void GeneratorControl::press_button(size_t index) {
 
 void GeneratorControl::start_sequence() {
   ESP_LOGI(TAG, "Запуск генератора");
-  this->control_switch_->turn_oт();
+  this->control_switch_->turn_on();
   this->sequence_running_ = true;
   this->sequence_set(GC_REGIME_START, GC_STEP_START_BEGIN);
   this->last_step_time_ = millis();
   this->restart=0;
   this->sequence_step(this->current_regime_, this->current_step_);
+
+  if( this->is_binary_valid(GC_IN_AC_CTRL) )
+  {
+    if( this->get_binary_value(GC_IN_AC_CTRL) ) this->control_ac_->turn_on();
+    else                                        this->control_ac_->turn_off();
+  }
 }
 
 void GeneratorControl::stop_sequence() {
@@ -299,13 +314,14 @@ void GeneratorControl::sequence_stop(int step)
   switch( step )
   {
       case GC_STEP_STOP_BEGIN: 
+        // если питание не подано, то не запускаем последовательность отключения нагрузки 
         if( this->relays_[GC_RELAY_POWER]->state ) this->sequence_setstep( GC_STEP_STOP_POWER_OFF );
         else                                       this->sequence_setstep( GC_STEP_STOP_ENGINE_OFF );
         break;
         
       case GC_STEP_STOP_POWER_OFF: 
         this->relays_[GC_RELAY_POWER]->turn_off();
-        sequence_setdelay(20000); // задержка перед выключением генера
+        sequence_setdelay(20000); // задержка перед выключением генератора
         this->sequence_setstep( GC_STEP_STOP_ENGINE_OFF );
         break;
         
@@ -340,6 +356,11 @@ bool GeneratorControl::get_binary_value(size_t index) const {
     return this->binary_sensors_[index]->state;
   }
   return false;
+}
+
+bool GeneratorControl::is_binary_valid(size_t index) const {
+  if (index < this->binary_sensors_.size() && this->binary_sensors_[index] != nullptr) return true;
+  else                                                                                 return false;
 }
 
 float GeneratorControl::get_modbus_value(size_t index) const {
