@@ -7,7 +7,8 @@ namespace generator_control {
 
 static const char *TAG = "generator_control";
 
-void GeneratorControl::setup() {
+void GeneratorControl::setup() 
+{
   // Выключаем все реле при старте
   for (auto relay : this->relays_) {
     relay->turn_off();
@@ -18,59 +19,47 @@ void GeneratorControl::setup() {
   this->set_output_value(GC_VAL_TIMEOUT, (float)0 );
 }
 
-void GeneratorControl::loop() {
-  // Проверяем состояние управляющего переключателя
-  if (this->control_switch_ == nullptr)
-    return;
+void GeneratorControl::loop() 
+{
     
   bool current_control_state = this->control_switch_->state;
   bool current_control_ac = this->control_ac_->state;
   
   // Если поступила команда на изменение режима работы
-  if (current_control_state != this->last_control_state_) {
+  if( current_control_state != this->last_control_state_ ) 
+  {
     this->last_control_state_ = current_control_state;
+
     this->last_step_time_ = 0; // сброс задержки выполнения при нажатии клавиши
     this->twait_ = 0;
     
-    if (current_control_state) {
-      // Переключатель включен - запускаем последовательность
-      this->start_sequence();
-    } else {
-      // Переключатель выключен - останавливаем последовательность
-      this->stop_sequence();
-    }
+    if( current_control_state)  { this->start_sequence(); } // Переключатель включен - запускаем генератор
+    else                        { this->stop_sequence();  } // Переключатель выключен - останавливаем последовательность
   }
   
   // Если поступила информация о состоянии сети 220v
   if (current_control_ac != this->last_control_ac_) {
     this->last_control_ac_ = current_control_ac;
 
-    if (current_control_ac) 
-    { // Флаг установлен - запускаем последовательность нормального напряжения
-      this->start_sequence_ac_ok();
-    } else 
-    {
-      // Флаг сброшен - запускаем последовательность выключения генератора 
-      this->start_sequence_ac_fail();
-    }
+    if( current_control_ac )  { this->start_sequence_ac_ok(); }   // Флаг установлен - запускаем последовательность нормального напряжения
+    else                      { this->start_sequence_ac_fail(); } // Флаг сброшен - запускаем последовательность выключения генератора
   }
-  
-  
+    
   // Если последовательность запущена, проверяем время для следующего шага
-  if (this->sequence_running_ && millis() - this->last_step_time_ >= 500) 
+  if( this->sequence_running_ &&  this->last_step_time_ < millis() ) 
   {
-    if( this->twait_<millis() )
+    if( this->twait_<millis() ) // задан таймоут перехода к следующему шагу 
     {
-        this->sequence_step(this->current_regime_, this->current_step_);
-        this->last_step_time_ = millis();
-        if( this->val_timeout!=0 )
-        {
-          this->set_output_value(GC_VAL_TIMEOUT, (float)0 );
-          this->val_timeout=0;
-        }
+      // выполняем функцию-диспетчер последовательностей 
+      this->sequence_step(this->current_regime_, this->current_step_);
+      this->last_step_time_ = millis()+500; // каждый шаг выполняется через 500 мсек
+
+      // выводим только езменения переменной 
+      if( this->val_timeout!=0 ) { this->set_output_value(GC_VAL_TIMEOUT, (float)0 ); this->val_timeout=0; }
     }
     else
     {
+      // публикуем текущее значение таймаута при изменении
       if( this->val_timeout!=((int)(this->twait_-millis())/1000) )
       {
         this->val_timeout=((int)(this->twait_-millis())/1000);
@@ -92,6 +81,7 @@ void GeneratorControl::press_button(size_t index) {
 
 void GeneratorControl::start_sequence() {
   ESP_LOGI(TAG, "Запуск генератора");
+  this->control_switch_->turn_oт();
   this->sequence_running_ = true;
   this->sequence_set(GC_REGIME_START, GC_STEP_START_BEGIN);
   this->last_step_time_ = millis();
@@ -101,6 +91,7 @@ void GeneratorControl::start_sequence() {
 
 void GeneratorControl::stop_sequence() {
   ESP_LOGI(TAG, "Остановка генератора");
+  this->control_switch_->turn_off();
   this->sequence_running_ = true;
   this->sequence_set(GC_REGIME_STOP, GC_STEP_STOP_BEGIN);
   this->last_step_time_ = millis();
@@ -164,7 +155,7 @@ void GeneratorControl::sequence_ac_ok(int step)
         break;
         
       case GC_STEP_START_AC_GEN_OFF: 
-        this->sequence_set(GC_REGIME_STOP, GC_STEP_STOP_BEGIN);
+        this->stop_sequence();
         break;
       
       default:
@@ -183,7 +174,7 @@ void GeneratorControl::sequence_ac_fail(int step)
         break;
         
       case GC_STEP_START_AC_GEN_ON: 
-        this->sequence_set(GC_REGIME_START, GC_STEP_START_BEGIN);
+        this->start_sequence();
         break;
       
       default:
