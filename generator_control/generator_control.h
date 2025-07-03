@@ -5,6 +5,7 @@
 #include "esphome/components/button/button.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/core/hal.h" // Добавляем этот заголовок для доступа к milli
 #include <vector>
 
 #define GC_REGIME_NULL      0
@@ -66,7 +67,11 @@
 #define GC_VAL_REGIME               0
 #define GC_VAL_REGSTEP              1
 #define GC_VAL_TIMEOUT              2
+#define GC_VAL_MOTOHR               3
+#define GC_VAL_GAS                  4
 
+extern int generator_motohr_eeprom;
+extern int generator_gas_eeprom;
 
 
 namespace esphome {
@@ -104,6 +109,9 @@ class GeneratorControl : public Component {
   float get_modbus_value(size_t index) const;
   bool is_binary_valid(size_t index) const;
 
+  void CheckMotoHrAndOil();
+  uint32_t iTime() { return millis()/1000; }
+
  protected:
   void start_sequence();
   void stop_sequence();
@@ -117,6 +125,9 @@ class GeneratorControl : public Component {
   void sequence_start(int step);
   void sequence_ac_ok(int step);
   void sequence_ac_fail(int step);
+
+  ESPPreferenceObject  generator_motohr_eeprom;
+  ESPPreferenceObject  generator_gas_eeprom;
   
   std::vector<sensor::Sensor *> analog_sensors_;
   std::vector<binary_sensor::BinarySensor *> binary_sensors_;
@@ -138,6 +149,13 @@ class GeneratorControl : public Component {
   uint32_t tsync_ha_flags{0};
   int restart{0};
   int val_timeout{0};
+
+  uint32_t  tMotoHr{0};         // моточасы  
+  uint32_t  tOilMin{30600};     // объем топлива в секундах полный бак на 8.5 часов 
+
+  uint32_t  tEnginOnBegTime{0};
+  bool      bEnginOn{false};
+  uint32_t  tMotHrSave{0};
 };
 
 } // namespace generator_control

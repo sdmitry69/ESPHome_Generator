@@ -139,13 +139,6 @@ modbus_controller:
         - lambda: |-
             ESP_LOGI("","Lambda offline message. function_code=%d, address=%d",function_code,address);
 
-homeassistant:
-  # Двоичные датчики из Home Assistant
-  binary_sensor:
-    - id: ha_voltage380_flag
-      name: "Voltage 380V Flag"
-      entity_id: input_boolean.voltage380_flag
-
 sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_gen_temp
@@ -452,6 +445,31 @@ sensor:
     unit_of_measurement: "сек"
     icon: "mdi:timer"
 
+  - platform: template
+    name: "Generator MotoHr"
+    id: generator_motohr
+    accuracy_decimals: 0
+    unit_of_measurement: "мин"
+    icon: "mdi:engine"
+
+  - platform: template
+    name: "Generator Gas"
+    id: generator_gas
+    accuracy_decimals: 0
+    unit_of_measurement: "мин"
+    icon: "mdi:gas-station"
+
+  - platform: template
+    name: "Generator state switch"
+    id: gen_switch_state
+    lambda: |-
+      if (id(kc868_a6_in_1).state)      { return 0.0; } // включен режим блокировки
+      else if (id(kc868_a6_in_2).state) { return 2.0; }// включен режим автозапуск
+      else { return 1.0; } // включен режим ручной запуск
+    update_interval: 1s
+    unit_of_measurement: ""
+    accuracy_decimals: 0
+
 binary_sensor:
   # Датчик контроля наличия связи с модулем PZEM modbus
   - platform: template
@@ -511,6 +529,13 @@ binary_sensor:
       number: 5
       mode: INPUT
       inverted: true
+
+    # Двоичные датчики из Home Assistant
+  - platform: homeassistant
+    id: ha_voltage380_flag
+    name: "Voltage 380V Flag"
+    entity_id: input_boolean.voltage380_flag
+
 
 button:
   - platform: template
@@ -601,7 +626,7 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
-
+      
       
 # Используем наш компонент с прямой конфигурацией
 generator_control:
@@ -637,3 +662,5 @@ generator_control:
     - generator_regime
     - generator_regime_step
     - generator_timeout
+    - generator_motohr
+    - generator_gas

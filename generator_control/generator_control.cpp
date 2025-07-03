@@ -1,11 +1,14 @@
 #include "generator_control.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h" // Добавляем этот заголовок для доступа к millis()
+#include "esphome/core/preferences.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace generator_control {
 
 static const char *TAG = "generator_control";
+static uint32_t generator_counter = 0;
 
 void GeneratorControl::setup() 
 {
@@ -16,6 +19,82 @@ void GeneratorControl::setup()
   this->set_output_value(GC_VAL_REGSTEP, (float)this->current_step_);
   this->set_output_value(GC_VAL_TIMEOUT, (float)0 );
   this->tsync_ha_flags=millis()+15000; // опрос через 15 секунд
+
+  // инициализация переменных  EEPROM
+  this->generator_motohr_eeprom = global_preferences->make_preference<int>(++generator_counter ^ 0x1234567);
+  this->generator_gas_eeprom = global_preferences->make_preference<int>(++generator_counter ^ 0x7654321);
+
+  this->generator_motohr_eeprom.load(&this->tMotoHr);
+  this->generator_gas_eeprom.load(&this->tOilMin);
+
+  /* первичная установка значений
+  if( this->tMotoHr==118*60 ) 
+  {
+    this->tMotoHr = 7090*60;    // установка значений из предыдущей конфигурации
+    this->generator_motohr_eeprom.save(&this->tMotoHr);
+  }
+
+  if( this->tOilMin==510*60 ) 
+  {
+    this->tOilMin = 330*60;    // установка значений из предыдущей конфигурации
+    this->generator_gas_eeprom.save(&this->tOilMin);
+  }*/
+
+  this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
+  this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+
+  this->tEnginOnBegTime = 0;
+  this->bEnginOn = false;
+  this->tMotHrSave = iTime()+900; // запись в eeprom раз в 15 минут
+
+}
+
+void GeneratorControl::CheckMotoHrAndOil() 
+{
+  if( this->get_analog_value(GC_ADC_AI3)>10 ) // генератор заведен
+  {
+    if( !this->bEnginOn ) 
+    {
+      this->tEnginOnBegTime = iTime();
+      this->bEnginOn = true;
+      this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
+      this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+    }
+    else
+    {
+      if( this->tEnginOnBegTime +60 < iTime() ) // раз в минуту наращиваем счетчики
+      {
+        this->tMotoHr += iTime() - this->tEnginOnBegTime;
+        this->tOilMin -= iTime() - this->tEnginOnBegTime;
+        if( this->tOilMin<0 ) this->tOilMin = 0;
+        this->tEnginOnBegTime = iTime();
+        this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60)); // передаем в минутах
+        this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+        if( this->tMotHrSave < iTime() )
+        {
+          this->generator_motohr_eeprom.save(&this->tMotoHr);// моточасы  
+          this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
+    
+          this->tMotHrSave = iTime()+900; // запись в eeprom раз в 15 минут
+        }
+      }
+    }
+  }
+  else
+  {
+    if( this->bEnginOn ) 
+    {
+      this->tMotoHr += iTime() - this->tEnginOnBegTime;
+      this->tOilMin -= iTime() - this->tEnginOnBegTime;
+      this->tEnginOnBegTime = 0;
+      this->bEnginOn = false;
+      this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
+      this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+      this->generator_motohr_eeprom.save(&this->tMotoHr);// моточасы  
+      this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
+    
+    }
+  }
 }
 
 void GeneratorControl::loop() 
@@ -23,6 +102,8 @@ void GeneratorControl::loop()
     
   bool current_control_state = this->control_switch_->state;
   bool current_control_ac = this->control_ac_->state;
+
+  this->CheckMotoHrAndOil();
 
   if( this->tsync_ha_flags<millis() )
   {

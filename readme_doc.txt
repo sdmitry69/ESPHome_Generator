@@ -6018,3 +6018,1732 @@ void RelaySequencer::process_sensor_data() {
    - Это предотвратит конфликты в логике управления.
 
 Используя `input_boolean` из Home Assistant в вашем компоненте ESPHome, вы можете создать гибкую систему управления, которая легко настраивается через интерфейс Home Assistant без необходимости перепрограммировать устройство ESPHome.
+
+### USER
+Failed config homeassistant: [source /config/esphome/generator-kinkony.yaml:144] Component homeassistant cannot be loaded via YAML (no CONFIG_SCHEMA).
+
+### ASSISTANT
+# Исправление ошибки "Component homeassistant cannot be loaded via YAML"
+
+Эта ошибка означает, что компонент `homeassistant` не может быть загружен через YAML в вашей версии ESPHome. Это может происходить по нескольким причинам:
+
+1. Вы используете устаревшую версию ESPHome
+2. Компонент `homeassistant` не установлен или не доступен
+3. Синтаксис конфигурации изменился
+
+Давайте рассмотрим альтернативные способы получения значений из Home Assistant в ESPHome.
+
+## 1. Использование компонента `api` с сенсорами типа `homeassistant`
+
+В современных версиях ESPHome для получения значений из Home Assistant используется другой синтаксис:
+
+```yaml
+# Правильный способ получения значений из Home Assistant
+api:
+  # Этот раздел необходим для связи с Home Assistant
+
+# Датчики из Home Assistant
+sensor:
+  - platform: homeassistant
+    id: ha_outdoor_temperature
+    entity_id: sensor.outdoor_temperature
+    name: "Outdoor Temperature from HA"
+    
+  - platform: homeassistant
+    id: ha_power_consumption
+    entity_id: sensor.total_power_consumption
+    name: "Power Consumption from HA"
+
+# Двоичные датчики из Home Assistant
+binary_sensor:
+  - platform: homeassistant
+    id: ha_voltage380_flag
+    entity_id: input_boolean.voltage380_flag
+    name: "Voltage 380V Flag"
+    
+  - platform: homeassistant
+    id: ha_garage_door
+    entity_id: binary_sensor.garage_door
+    name: "Garage Door from HA"
+
+# Переключатели из Home Assistant
+switch:
+  - platform: homeassistant
+    id: ha_garden_lights
+    entity_id: switch.garden_lights
+    name: "Garden Lights from HA"
+```
+
+## 2. Полный пример конфигурации с исправленным синтаксисом
+
+```yaml
+esphome:
+  name: generator_controller
+  platform: ESP32
+  board: esp32dev
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:  # Необходимо для связи с Home Assistant
+
+ota:
+logger:
+  level: INFO
+
+# Локальные реле
+switch:
+  - platform: gpio
+    name: "Контактор 380В"
+    id: contactor_380v
+    pin: GPIO16
+    
+  - platform: gpio
+    name: "Трехфазное оборудование"
+    id: three_phase_equipment
+    pin: GPIO17
+    
+  - platform: gpio
+    name: "Однофазное оборудование"
+    id: single_phase_equipment
+    pin: GPIO18
+    
+  - platform: template
+    name: "Режим автоматического управления"
+    id: auto_mode
+    optimistic: true
+    
+  # Переключатель из Home Assistant
+  - platform: homeassistant
+    id: ha_irrigation
+    entity_id: switch.irrigation_system
+    name: "Irrigation System from HA"
+
+# Датчики из Home Assistant
+sensor:
+  - platform: homeassistant
+    id: ha_outdoor_temp
+    entity_id: sensor.outdoor_temperature
+    name: "Outdoor Temperature from HA"
+    
+  - platform: homeassistant
+    id: ha_power_consumption
+    entity_id: sensor.power_consumption
+    name: "Power Consumption from HA"
+
+# Двоичные датчики из Home Assistant
+binary_sensor:
+  - platform: homeassistant
+    id: ha_voltage380_flag
+    entity_id: input_boolean.voltage380_flag
+    name: "Voltage 380V Flag"
+    
+  - platform: homeassistant
+    id: ha_energy_saving_mode
+    entity_id: input_boolean.energy_saving_mode
+    name: "Energy Saving Mode"
+    
+  - platform: homeassistant
+    id: ha_maintenance_mode
+    entity_id: input_boolean.maintenance_mode
+    name: "Maintenance Mode"
+
+# Ваш пользовательский компонент
+relay_sequencer:
+  id: my_sequencer
+  name: "Контроллер генератора"
+  
+  # Управляющий переключатель
+  control_switch: auto_mode
+  
+  # Реле (локальные и из Home Assistant)
+  relays:
+    - contactor_380v
+    - three_phase_equipment
+    - single_phase_equipment
+    - ha_irrigation
+  
+  # Аналоговые датчики из Home Assistant
+  analog_sensors:
+    - ha_outdoor_temp
+    - ha_power_consumption
+  
+  # Двоичные датчики из Home Assistant
+  binary_sensors:
+    - ha_voltage380_flag
+    - ha_energy_saving_mode
+    - ha_maintenance_mode
+  
+  # Настройки компонента
+  enable_logging: true
+  operation_mode: sequential
+```
+
+## 3. Проверка версии ESPHome
+
+Если у вас возникают проблемы с синтаксисом, рекомендуется проверить версию ESPHome:
+
+```yaml
+# Добавьте это в вашу конфигурацию для вывода версии
+logger:
+  level: INFO
+  logs:
+    esphome: INFO
+    esphome.core: INFO
+```
+
+После загрузки прошивки, в логах вы увидите версию ESPHome.
+
+## 4. Обновление ESPHome
+
+Если вы используете устаревшую версию ESPHome, рекомендуется обновить ее:
+
+```bash
+# Если вы используете pip
+pip install --upgrade esphome
+
+# Если вы используете Docker
+docker pull esphome/esphome:latest
+
+# Если вы используете Home Assistant Add-on
+# Обновите add-on через интерфейс Home Assistant
+```
+
+## 5. Альтернативный подход: использование шаблонных сенсоров
+
+Если у вас возникают проблемы с прямым получением данных из Home Assistant, вы можете использовать шаблонные сенсоры в Home Assistant, которые будут обновляться через MQTT:
+
+1. Настройте MQTT в ESPHome:
+
+```yaml
+mqtt:
+  broker: 192.168.1.100  # IP-адрес вашего MQTT-брокера
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+```
+
+2. Создайте подписки на MQTT-топики:
+
+```yaml
+mqtt:
+  # ... настройки брокера ...
+  
+  # Подписки на топики
+  on_message:
+    - topic: homeassistant/voltage380_flag
+      payload: "ON"
+      then:
+        - lambda: |-
+            id(voltage380_flag).publish_state(true);
+    - topic: homeassistant/voltage380_flag
+      payload: "OFF"
+      then:
+        - lambda: |-
+            id(voltage380_flag).publish_state(false);
+```
+
+3. Создайте локальные датчики для хранения значений:
+
+```yaml
+binary_sensor:
+  - platform: template
+    id: voltage380_flag
+    name: "Voltage 380V Flag"
+```
+
+4. В Home Assistant настройте автоматизацию для публикации значений в MQTT:
+
+```yaml
+automation:
+  - alias: "Publish Voltage380 Flag to MQTT"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.voltage380_flag
+    action:
+      - service: mqtt.publish
+        data_template:
+          topic: "homeassistant/voltage380_flag"
+          payload: "{{ states('input_boolean.voltage380_flag') }}"
+```
+
+## 6. Проверка конфигурации ESPHome
+
+Перед загрузкой прошивки рекомендуется проверить конфигурацию:
+
+```bash
+esphome config your_config.yaml
+```
+
+Это поможет выявить ошибки в синтаксисе.
+
+## 7. Обновление пользовательского компонента
+
+Убедитесь, что ваш пользовательский компонент `relay_sequencer` совместим с текущей версией ESPHome и правильно обрабатывает датчики из Home Assistant.
+
+Если вы используете внешний компонент, возможно, потребуется обновить его до последней версии или внести изменения в код для совместимости с вашей версией ESPHome.
+
+### USER
+а как можно передать из пользовательской компоненты строковое значение
+
+### ASSISTANT
+# Передача строковых значений из пользовательского компонента ESPHome
+
+Для передачи строковых значений из пользовательского компонента в Home Assistant необходимо использовать текстовый сенсор (`text_sensor`). Вот пошаговое руководство:
+
+## 1. Обновление файла `__init__.py`
+
+Добавим поддержку текстовых сенсоров в наш компонент:
+
+```python
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.const import CONF_ID
+from esphome.components import switch, sensor, binary_sensor, text_sensor
+
+DEPENDENCIES = ['switch', 'sensor', 'binary_sensor', 'text_sensor']
+
+CONF_CONTROL_SWITCH = 'control_switch'
+CONF_RELAYS = 'relays'
+CONF_ANALOG_SENSORS = 'analog_sensors'
+CONF_BINARY_SENSORS = 'binary_sensors'
+CONF_MODBUS_SENSORS = 'modbus_sensors'
+CONF_OUTPUT_SENSORS = 'output_sensors'
+CONF_TEXT_SENSORS = 'text_sensors'  # Новое: текстовые сенсоры
+
+relay_sequencer_ns = cg.esphome_ns.namespace('relay_sequencer')
+RelaySequencer = relay_sequencer_ns.class_('RelaySequencer', cg.Component)
+
+CONFIG_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.declare_id(RelaySequencer),
+    cv.Required(CONF_CONTROL_SWITCH): cv.use_id(switch.Switch),
+    cv.Required(CONF_RELAYS): cv.ensure_list(cv.use_id(switch.Switch)),
+    cv.Optional(CONF_ANALOG_SENSORS): cv.ensure_list(cv.use_id(sensor.Sensor)),
+    cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(cv.use_id(binary_sensor.BinarySensor)),
+    cv.Optional(CONF_MODBUS_SENSORS): cv.ensure_list(cv.use_id(sensor.Sensor)),
+    cv.Optional(CONF_OUTPUT_SENSORS): cv.ensure_list(cv.use_id(sensor.Sensor)),
+    cv.Optional(CONF_TEXT_SENSORS): cv.ensure_list(cv.use_id(text_sensor.TextSensor)),  # Новое
+}).extend(cv.COMPONENT_SCHEMA)
+
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    
+    control_switch = await cg.get_variable(config[CONF_CONTROL_SWITCH])
+    cg.add(var.set_control_switch(control_switch))
+    
+    for relay_id in config[CONF_RELAYS]:
+        relay = await cg.get_variable(relay_id)
+        cg.add(var.add_relay(relay))
+        
+    if CONF_ANALOG_SENSORS in config:
+        for sensor_id in config[CONF_ANALOG_SENSORS]:
+            analog_sensor = await cg.get_variable(sensor_id)
+            cg.add(var.add_analog_sensor(analog_sensor))
+            
+    if CONF_BINARY_SENSORS in config:
+        for sensor_id in config[CONF_BINARY_SENSORS]:
+            binary_sensor = await cg.get_variable(sensor_id)
+            cg.add(var.add_binary_sensor(binary_sensor))
+            
+    if CONF_MODBUS_SENSORS in config:
+        for sensor_id in config[CONF_MODBUS_SENSORS]:
+            modbus_sensor = await cg.get_variable(sensor_id)
+            cg.add(var.add_modbus_sensor(modbus_sensor))
+            
+    if CONF_OUTPUT_SENSORS in config:
+        for sensor_id in config[CONF_OUTPUT_SENSORS]:
+            output_sensor = await cg.get_variable(sensor_id)
+            cg.add(var.add_output_sensor(output_sensor))
+            
+    if CONF_TEXT_SENSORS in config:
+        for sensor_id in config[CONF_TEXT_SENSORS]:
+            text_sensor = await cg.get_variable(sensor_id)
+            cg.add(var.add_text_sensor(text_sensor))
+```
+
+## 2. Обновление файла `relay_sequencer.h`
+
+Добавим методы для работы с текстовыми сенсорами:
+
+```cpp
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/switch/switch.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
+#include <vector>
+#include <string>
+
+namespace esphome {
+namespace relay_sequencer {
+
+class RelaySequencer : public Component {
+ public:
+  void setup() override;
+  void loop() override;
+  
+  // ... существующие методы ...
+  
+  // Метод для добавления текстового сенсора
+  void add_text_sensor(text_sensor::TextSensor *text_sensor) { text_sensors_.push_back(text_sensor); }
+  
+  // Метод для установки значения текстового сенсора
+  void set_text_value(size_t index, const std::string &value);
+  
+  // Метод для установки значения текстового сенсора по имени
+  void set_text_value_by_name(const std::string &name, const std::string &value);
+  
+ protected:
+  // ... существующие поля ...
+  
+  // Текстовые сенсоры
+  std::vector<text_sensor::TextSensor *> text_sensors_;
+  
+  // Примеры строковых переменных, которые мы хотим передать
+  std::string status_message_{"Ready"};
+  std::string current_mode_{"Normal"};
+  std::string error_message_{""};
+  std::string device_info_{"Relay Sequencer v1.0"};
+};
+
+} // namespace relay_sequencer
+} // namespace esphome
+```
+
+## 3. Обновление файла `relay_sequencer.cpp`
+
+Добавим реализацию методов для работы с текстовыми сенсорами:
+
+```cpp
+#include "relay_sequencer.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+
+namespace esphome {
+namespace relay_sequencer {
+
+static const char *TAG = "relay_sequencer";
+
+void RelaySequencer::setup() {
+  // ... существующий код ...
+  
+  ESP_LOGI(TAG, "Подключено текстовых сенсоров: %d", this->text_sensors_.size());
+  
+  // Инициализируем текстовые сенсоры начальными значениями
+  if (!this->text_sensors_.empty()) {
+    // Первый текстовый сенсор - статус
+    this->set_text_value(0, this->status_message_);
+  }
+  
+  if (this->text_sensors_.size() > 1) {
+    // Второй текстовый сенсор - текущий режим
+    this->set_text_value(1, this->current_mode_);
+  }
+  
+  if (this->text_sensors_.size() > 2) {
+    // Третий текстовый сенсор - сообщение об ошибке
+    this->set_text_value(2, this->error_message_);
+  }
+  
+  if (this->text_sensors_.size() > 3) {
+    // Четвертый текстовый сенсор - информация об устройстве
+    this->set_text_value(3, this->device_info_);
+  }
+}
+
+void RelaySequencer::loop() {
+  // ... существующий код ...
+  
+  // Пример обновления текстовых сенсоров
+  static uint32_t last_text_update = 0;
+  if (esphome::millis() - last_text_update >= 10000) {  // Каждые 10 секунд
+    last_text_update = esphome::millis();
+    
+    // Обновляем статус
+    if (this->sequence_running_) {
+      this->status_message_ = "Running sequence";
+    } else {
+      this->status_message_ = "Standby";
+    }
+    
+    // Обновляем режим
+    switch (this->operation_mode_) {
+      case MODE_SEQUENTIAL:
+        this->current_mode_ = "Sequential";
+        break;
+      case MODE_PARALLEL:
+        this->current_mode_ = "Parallel";
+        break;
+      case MODE_RANDOM:
+        this->current_mode_ = "Random";
+        break;
+      default:
+        this->current_mode_ = "Unknown";
+        break;
+    }
+    
+    // Обновляем информацию об устройстве
+    char device_info[64];
+    snprintf(device_info, sizeof(device_info), 
+             "Relay Sequencer v1.0 - Uptime: %u min", 
+             (unsigned int)(esphome::millis() / 60000));
+    this->device_info_ = device_info;
+    
+    // Отправляем обновленные значения в Home Assistant
+    this->set_text_value(0, this->status_message_);
+    this->set_text_value(1, this->current_mode_);
+    this->set_text_value(3, this->device_info_);
+    
+    ESP_LOGD(TAG, "Обновлены текстовые сенсоры: status='%s', mode='%s', device_info='%s'", 
+             this->status_message_.c_str(), this->current_mode_.c_str(), this->device_info_.c_str());
+  }
+}
+
+// ... существующие методы ...
+
+// Метод для установки значения текстового сенсора
+void RelaySequencer::set_text_value(size_t index, const std::string &value) {
+  if (index < this->text_sensors_.size() && this->text_sensors_[index] != nullptr) {
+    this->text_sensors_[index]->publish_state(value);
+  }
+}
+
+// Метод для установки значения текстового сенсора по имени
+void RelaySequencer::set_text_value_by_name(const std::string &name, const std::string &value) {
+  for (auto *text_sensor : this->text_sensors_) {
+    if (text_sensor != nullptr && text_sensor->get_name() == name) {
+      text_sensor->publish_state(value);
+      return;
+    }
+  }
+  
+  ESP_LOGW(TAG, "Текстовый сенсор с именем '%s' не найден", name.c_str());
+}
+
+// Пример использования текстовых сенсоров в обработке ошибок
+void RelaySequencer::process_sensor_data() {
+  // ... существующий код ...
+  
+  // Пример: обнаружение ошибки и отправка сообщения
+  for (size_t i = 0; i < this->analog_sensors_.size(); i++) {
+    float value = this->get_analog_value(i);
+    if (!std::isnan(value) && value > this->max_temperature_) {
+      // Обнаружена ошибка - температура слишком высокая
+      char error_msg[64];
+      snprintf(error_msg, sizeof(error_msg), 
+               "Temperature too high: %.1f°C (sensor %d)", value, (int)i);
+      this->error_message_ = error_msg;
+      
+      // Отправляем сообщение об ошибке в Home Assistant
+      if (this->text_sensors_.size() > 2) {
+        this->set_text_value(2, this->error_message_);
+      }
+      
+      ESP_LOGW(TAG, "Ошибка: %s", this->error_message_.c_str());
+    }
+  }
+}
+
+} // namespace relay_sequencer
+} // namespace esphome
+```
+
+## 4. Пример использования в YAML-конфигурации
+
+```yaml
+esphome:
+  name: relay_controller
+  platform: ESP32
+  board: esp32dev
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+ota:
+logger:
+
+# Текстовые сенсоры для получения строковых значений
+text_sensor:
+  - platform: template
+    name: "Status Message"
+    id: status_message
+    icon: "mdi:information"
+    
+  - platform: template
+    name: "Current Mode"
+    id: current_mode
+    icon: "mdi:state-machine"
+    
+  - platform: template
+    name: "Error Message"
+    id: error_message
+    icon: "mdi:alert"
+    
+  - platform: template
+    name: "Device Info"
+    id: device_info
+    icon: "mdi:information-outline"
+
+# ... другие компоненты ...
+
+# Используем наш компонент с текстовыми сенсорами
+relay_sequencer:
+  id: my_sequencer
+  control_switch: sequence_mode
+  relays:
+    - relay_1
+    - relay_2
+    - relay_3
+    - relay_4
+  # ... другие компоненты ...
+  text_sensors:
+    - status_message
+    - current_mode
+    - error_message
+    - device_info
+```
+
+## 5. Примеры использования текстовых сенсоров в вашем коде
+
+### Пример 1: Отправка информации о состоянии реле
+
+```cpp
+void RelaySequencer::sequence_step(int step) {
+  // ... существующий код ...
+  
+  // Формируем информацию о состоянии реле
+  std::string relay_status = "Active relays: ";
+  bool first = true;
+  
+  for (size_t i = 0; i < this->relays_.size(); i++) {
+    if (this->is_relay_on(i)) {
+      if (!first) {
+        relay_status += ", ";
+      }
+      
+      // Если есть метка для реле, используем ее
+      if (i < this->relay_labels_.size() && !this->relay_labels_[i].empty()) {
+        relay_status += this->relay_labels_[i];
+      } else {
+        char relay_num[8];
+        snprintf(relay_num, sizeof(relay_num), "Relay %d", (int)i + 1);
+        relay_status += relay_num;
+      }
+      
+      first = false;
+    }
+  }
+  
+  if (first) {
+    relay_status += "None";
+  }
+  
+  // Отправляем информацию в Home Assistant
+  if (!this->text_sensors_.empty()) {
+    this->set_text_value(0, relay_status);
+  }
+}
+```
+
+### Пример 2: Отправка журнала событий
+
+```cpp
+void RelaySequencer::log_event(const std::string &event) {
+  // Добавляем временную метку к событию
+  char timestamp[20];
+  uint32_t uptime_seconds = esphome::millis() / 1000;
+  uint32_t hours = uptime_seconds / 3600;
+  uint32_t minutes = (uptime_seconds % 3600) / 60;
+  uint32_t seconds = uptime_seconds % 60
+
+### USER
+продолжи вывод
+
+### ASSISTANT
+```cpp
+void RelaySequencer::log_event(const std::string &event) {
+  // Добавляем временную метку к событию
+  char timestamp[20];
+  uint32_t uptime_seconds = esphome::millis() / 1000;
+  uint32_t hours = uptime_seconds / 3600;
+  uint32_t minutes = (uptime_seconds % 3600) / 60;
+  uint32_t seconds = uptime_seconds % 60;
+  
+  snprintf(timestamp, sizeof(timestamp), "[%02u:%02u:%02u] ", hours, minutes, seconds);
+  
+  // Формируем сообщение с временной меткой
+  std::string message = timestamp + event;
+  
+  // Логируем событие
+  ESP_LOGI(TAG, "%s", message.c_str());
+  
+  // Храним последние 5 событий
+  static std::vector<std::string> event_log;
+  event_log.push_back(message);
+  
+  // Ограничиваем размер журнала
+  if (event_log.size() > 5) {
+    event_log.erase(event_log.begin());
+  }
+  
+  // Формируем полный журнал для отправки
+  std::string full_log;
+  for (const auto &log_entry : event_log) {
+    if (!full_log.empty()) {
+      full_log += "\n";
+    }
+    full_log += log_entry;
+  }
+  
+  // Отправляем журнал в Home Assistant
+  if (this->text_sensors_.size() > 1) {
+    this->set_text_value(1, full_log);
+  }
+}
+
+// Пример использования метода log_event
+void RelaySequencer::start_sequence() {
+  this->sequence_running_ = true;
+  this->current_step_ = 0;
+  this->last_step_time_ = esphome::millis();
+  
+  // Логируем событие
+  this->log_event("Sequence started in " + std::string(OPERATION_MODE_STRINGS[this->operation_mode_]) + " mode");
+  
+  this->sequence_step(this->current_step_);
+}
+
+void RelaySequencer::stop_sequence() {
+  this->sequence_running_ = false;
+  
+  // Логируем событие
+  this->log_event("Sequence stopped");
+  
+  // Выключаем все реле
+  for (auto relay : this->relays_) {
+    relay->turn_off();
+  }
+}
+```
+
+### Пример 3: Отправка диагностической информации
+
+```cpp
+void RelaySequencer::send_diagnostic_info() {
+  // Собираем информацию о системе
+  char system_info[256];
+  
+  // Информация о свободной памяти
+  #ifdef ESP8266
+  uint32_t free_heap = ESP.getFreeHeap();
+  uint8_t heap_fragmentation = ESP.getHeapFragmentation();
+  #elif defined(ESP32)
+  uint32_t free_heap = ESP.getFreeHeap();
+  uint32_t min_free_heap = ESP.getMinFreeHeap();
+  uint32_t heap_fragmentation = 0;  // ESP32 не предоставляет фрагментацию напрямую
+  #endif
+  
+  // Информация о WiFi
+  int8_t rssi = WiFi.RSSI();
+  
+  // Формируем строку с информацией
+  #ifdef ESP8266
+  snprintf(system_info, sizeof(system_info), 
+           "System: ESP8266\n"
+           "Free Heap: %u bytes\n"
+           "Heap Fragmentation: %u%%\n"
+           "WiFi RSSI: %d dBm\n"
+           "Uptime: %u min\n"
+           "Active Relays: %d/%d",
+           free_heap, heap_fragmentation, rssi,
+           (unsigned int)(esphome::millis() / 60000),
+           this->count_active_relays(), (int)this->relays_.size());
+  #elif defined(ESP32)
+  snprintf(system_info, sizeof(system_info), 
+           "System: ESP32\n"
+           "Free Heap: %u bytes\n"
+           "Min Free Heap: %u bytes\n"
+           "WiFi RSSI: %d dBm\n"
+           "Uptime: %u min\n"
+           "Active Relays: %d/%d",
+           free_heap, min_free_heap, rssi,
+           (unsigned int)(esphome::millis() / 60000),
+           this->count_active_relays(), (int)this->relays_.size());
+  #endif
+  
+  // Отправляем информацию в Home Assistant
+  if (this->text_sensors_.size() > 2) {
+    this->set_text_value(2, system_info);
+  }
+}
+
+// Вспомогательный метод для подсчета активных реле
+int RelaySequencer::count_active_relays() {
+  int count = 0;
+  for (size_t i = 0; i < this->relays_.size(); i++) {
+    if (this->is_relay_on(i)) {
+      count++;
+    }
+  }
+  return count;
+}
+```
+
+### Пример 4: Отправка JSON-данных
+
+```cpp
+void RelaySequencer::send_json_data() {
+  // Формируем JSON-строку с данными
+  char json_buffer[512];
+  
+  // Начало JSON-объекта
+  strcpy(json_buffer, "{");
+  
+  // Добавляем информацию о состоянии
+  strcat(json_buffer, "\"status\":");
+  if (this->sequence_running_) {
+    strcat(json_buffer, "\"running\",");
+  } else {
+    strcat(json_buffer, "\"standby\",");
+  }
+  
+  // Добавляем информацию о режиме
+  strcat(json_buffer, "\"mode\":\"");
+  strcat(json_buffer, OPERATION_MODE_STRINGS[this->operation_mode_]);
+  strcat(json_buffer, "\",");
+  
+  // Добавляем информацию о реле
+  strcat(json_buffer, "\"relays\":[");
+  for (size_t i = 0; i < this->relays_.size(); i++) {
+    if (i > 0) {
+      strcat(json_buffer, ",");
+    }
+    
+    strcat(json_buffer, "{\"index\":");
+    char index_str[8];
+    snprintf(index_str, sizeof(index_str), "%d", (int)i);
+    strcat(json_buffer, index_str);
+    
+    strcat(json_buffer, ",\"state\":");
+    if (this->is_relay_on(i)) {
+      strcat(json_buffer, "\"on\"");
+    } else {
+      strcat(json_buffer, "\"off\"");
+    }
+    
+    // Если есть метка, добавляем ее
+    if (i < this->relay_labels_.size() && !this->relay_labels_[i].empty()) {
+      strcat(json_buffer, ",\"label\":\"");
+      strcat(json_buffer, this->relay_labels_[i].c_str());
+      strcat(json_buffer, "\"");
+    }
+    
+    strcat(json_buffer, "}");
+  }
+  strcat(json_buffer, "],");
+  
+  // Добавляем информацию о датчиках
+  strcat(json_buffer, "\"sensors\":{");
+  
+  // Аналоговые датчики
+  bool first_sensor = true;
+  for (size_t i = 0; i < this->analog_sensors_.size(); i++) {
+    float value = this->get_analog_value(i);
+    if (!std::isnan(value)) {
+      if (!first_sensor) {
+        strcat(json_buffer, ",");
+      }
+      
+      char sensor_data[64];
+      snprintf(sensor_data, sizeof(sensor_data), "\"analog_%d\":%.2f", (int)i, value);
+      strcat(json_buffer, sensor_data);
+      
+      first_sensor = false;
+    }
+  }
+  
+  // Двоичные датчики
+  for (size_t i = 0; i < this->binary_sensors_.size(); i++) {
+    bool value = this->get_binary_value(i);
+    
+    if (!first_sensor) {
+      strcat(json_buffer, ",");
+    }
+    
+    char sensor_data[64];
+    snprintf(sensor_data, sizeof(sensor_data), "\"binary_%d\":%s", (int)i, value ? "true" : "false");
+    strcat(json_buffer, sensor_data);
+    
+    first_sensor = false;
+  }
+  
+  strcat(json_buffer, "}");
+  
+  // Завершаем JSON-объект
+  strcat(json_buffer, "}");
+  
+  // Отправляем JSON в Home Assistant
+  if (this->text_sensors_.size() > 3) {
+    this->set_text_value(3, json_buffer);
+  }
+}
+```
+
+### Пример 5: Отправка информации о конфигурации
+
+```cpp
+void RelaySequencer::send_config_info() {
+  // Формируем строку с информацией о конфигурации
+  std::string config_info = "Configuration:\n";
+  
+  // Добавляем информацию о настройках
+  config_info += "- Name: " + this->name_ + "\n";
+  
+  char temp_str[64];
+  snprintf(temp_str, sizeof(temp_str), "- Sequence Interval: %u ms\n", this->sequence_interval_);
+  config_info += temp_str;
+  
+  snprintf(temp_str, sizeof(temp_str), "- Temperature Range: %.1f°C - %.1f°C\n", 
+           this->min_temperature_, this->max_temperature_);
+  config_info += temp_str;
+  
+  config_info += "- Operation Mode: " + std::string(OPERATION_MODE_STRINGS[this->operation_mode_]) + "\n";
+  config_info += "- Detailed Logging: " + std::string(this->enable_logging_ ? "Enabled" : "Disabled") + "\n";
+  
+  // Добавляем информацию о пороговых значениях
+  if (!this->thresholds_.empty()) {
+    config_info += "- Thresholds: ";
+    for (size_t i = 0; i < this->thresholds_.size(); i++) {
+      if (i > 0) {
+        config_info += ", ";
+      }
+      snprintf(temp_str, sizeof(temp_str), "%.2f", this->thresholds_[i]);
+      config_info += temp_str;
+    }
+    config_info += "\n";
+  }
+  
+  // Добавляем информацию о метках реле
+  if (!this->relay_labels_.empty()) {
+    config_info += "- Relay Labels:\n";
+    for (size_t i = 0; i < this->relay_labels_.size() && i < this->relays_.size(); i++) {
+      snprintf(temp_str, sizeof(temp_str), "  %d: %s\n", (int)i + 1, this->relay_labels_[i].c_str());
+      config_info += temp_str;
+    }
+  }
+  
+  // Отправляем информацию в Home Assistant
+  if (this->text_sensors_.size() > 4) {
+    this->set_text_value(4, config_info);
+  }
+}
+```
+
+## 6. Расширенный пример YAML-конфигурации с текстовыми сенсорами
+
+```yaml
+esphome:
+  name: relay_controller
+  platform: ESP32
+  board: esp32dev
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+ota:
+logger:
+
+# Текстовые сенсоры для получения строковых значений
+text_sensor:
+  - platform: template
+    name: "Status Message"
+    id: status_message
+    icon: "mdi:information"
+    
+  - platform: template
+    name: "Event Log"
+    id: event_log
+    icon: "mdi:text-box-multiple"
+    
+  - platform: template
+    name: "System Diagnostics"
+    id: system_diagnostics
+    icon: "mdi:memory"
+    
+  - platform: template
+    name: "JSON Data"
+    id: json_data
+    icon: "mdi:code-json"
+    
+  - platform: template
+    name: "Configuration Info"
+    id: config_info
+    icon: "mdi:cog"
+
+# Обычные сенсоры
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    id: wifi_signal
+    update_interval: 60s
+    
+  - platform: uptime
+    name: "Uptime"
+    id: uptime
+    update_interval: 60s
+    filters:
+      - lambda: return x / 60.0; # Convert to minutes
+    unit_of_measurement: "min"
+
+# Реле
+switch:
+  - platform: gpio
+    name: "Relay 1"
+    id: relay_1
+    pin: GPIO16
+    
+  - platform: gpio
+    name: "Relay 2"
+    id: relay_2
+    pin: GPIO17
+    
+  - platform: gpio
+    name: "Relay 3"
+    id: relay_3
+    pin: GPIO18
+    
+  - platform: gpio
+    name: "Relay 4"
+    id: relay_4
+    pin: GPIO19
+    
+  - platform: template
+    name: "Sequence Mode"
+    id: sequence_mode
+    optimistic: true
+
+# Используем наш компонент с текстовыми сенсорами
+relay_sequencer:
+  id: my_sequencer
+  name: "Advanced Relay Controller"
+  control_switch: sequence_mode
+  relays:
+    - relay_1
+    - relay_2
+    - relay_3
+    - relay_4
+  
+  # Аналоговые сенсоры
+  analog_sensors:
+    - wifi_signal
+    - uptime
+  
+  # Текстовые сенсоры
+  text_sensors:
+    - status_message
+    - event_log
+    - system_diagnostics
+    - json_data
+    - config_info
+  
+  # Настройки компонента
+  sequence_interval: 2s
+  max_temperature: 50.0
+  min_temperature: 10.0
+  enable_logging: true
+  operation_mode: sequential
+  
+  # Метки для реле
+  relay_labels:
+    - "Main Pump"
+    - "Heater"
+    - "Fan"
+    - "Light"
+```
+
+## 7. Рекомендации по работе с текстовыми сенсорами
+
+1. **Ограничение размера строк**:
+   - Избегайте слишком длинных строк, так как они могут вызвать проблемы с памятью.
+   - Для больших объемов данных разделите информацию на несколько сенсоров.
+
+2. **Частота обновления**:
+   - Не обновляйте текстовые сенсоры слишком часто, чтобы не перегружать систему.
+   - Используйте разумные интервалы обновления (например, каждые 5-10 секунд).
+
+3. **Форматирование**:
+   - Используйте понятное форматирование для строк (разделители, новые строки).
+
+### USER
+продолжи вывод
+
+### ASSISTANT
+## 7. Рекомендации по работе с текстовыми сенсорами (продолжение)
+
+4. **Обработка специальных символов**:
+   - Будьте осторожны с специальными символами в строках, особенно при формировании JSON.
+   - Используйте функции экранирования при необходимости.
+
+5. **Локализация**:
+   - Если ваш компонент будет использоваться в разных странах, предусмотрите возможность локализации сообщений.
+   - Храните строки в отдельных переменных для упрощения локализации.
+
+6. **Отладка**:
+   - Используйте текстовые сенсоры для отладки сложной логики.
+   - Отправляйте подробную информацию о состоянии и ошибках.
+
+7. **Оптимизация памяти**:
+   - Для экономии памяти используйте статические буферы вместо динамических строк.
+   - Освобождайте память, когда строки больше не нужны.
+
+## 8. Дополнительные примеры использования текстовых сенсоров
+
+### Пример 6: Отправка информации о подключенных устройствах
+
+```cpp
+void RelaySequencer::send_connected_devices_info() {
+  std::string devices_info = "Connected devices:\n";
+  
+  // Информация о реле
+  devices_info += "Relays:\n";
+  for (size_t i = 0; i < this->relays_.size(); i++) {
+    char relay_info[64];
+    const char *label = (i < this->relay_labels_.size() && !this->relay_labels_[i].empty()) 
+                        ? this->relay_labels_[i].c_str() 
+                        : "Unnamed";
+    
+    snprintf(relay_info, sizeof(relay_info), "  %d: %s (%s)\n", 
+             (int)i + 1, label, this->is_relay_on(i) ? "ON" : "OFF");
+    devices_info += relay_info;
+  }
+  
+  // Информация о датчиках
+  if (!this->analog_sensors_.empty()) {
+    devices_info += "Analog Sensors:\n";
+    for (size_t i = 0; i < this->analog_sensors_.size(); i++) {
+      char sensor_info[64];
+      float value = this->get_analog_value(i);
+      
+      if (!std::isnan(value)) {
+        snprintf(sensor_info, sizeof(sensor_info), "  %d: %.2f\n", (int)i + 1, value);
+      } else {
+        snprintf(sensor_info, sizeof(sensor_info), "  %d: N/A\n", (int)i + 1);
+      }
+      
+      devices_info += sensor_info;
+    }
+  }
+  
+  // Информация о двоичных датчиках
+  if (!this->binary_sensors_.empty()) {
+    devices_info += "Binary Sensors:\n";
+    for (size_t i = 0; i < this->binary_sensors_.size(); i++) {
+      char sensor_info[64];
+      bool value = this->get_binary_value(i);
+      
+      snprintf(sensor_info, sizeof(sensor_info), "  %d: %s\n", 
+               (int)i + 1, value ? "ON" : "OFF");
+      devices_info += sensor_info;
+    }
+  }
+  
+  // Отправляем информацию в Home Assistant
+  if (this->text_sensors_.size() > 5) {
+    this->set_text_value(5, devices_info);
+  }
+}
+```
+
+### Пример 7: Отправка HTML-форматированной информации
+
+```cpp
+void RelaySequencer::send_html_status() {
+  std::string html = "<table style='width:100%'>";
+  
+  // Заголовок таблицы
+  html += "<tr><th>Device</th><th>Status</th><th>Value</th></tr>";
+  
+  // Информация о реле
+  for (size_t i = 0; i < this->relays_.size(); i++) {
+    html += "<tr>";
+    
+    // Имя устройства
+    html += "<td>";
+    if (i < this->relay_labels_.size() && !this->relay_labels_[i].empty()) {
+      html += this->relay_labels_[i];
+    } else {
+      char relay_name[16];
+      snprintf(relay_name, sizeof(relay_name), "Relay %d", (int)i + 1);
+      html += relay_name;
+    }
+    html += "</td>";
+    
+    // Статус
+    html += "<td>";
+    html += this->is_relay_on(i) ? 
+            "<span style='color:green'>ON</span>" : 
+            "<span style='color:red'>OFF</span>";
+    html += "</td>";
+    
+    // Значение (для реле это пусто)
+    html += "<td></td>";
+    
+    html += "</tr>";
+  }
+  
+  // Информация о датчиках
+  for (size_t i = 0; i < this->analog_sensors_.size(); i++) {
+    html += "<tr>";
+    
+    // Имя устройства
+    char sensor_name[16];
+    snprintf(sensor_name, sizeof(sensor_name), "Sensor %d", (int)i + 1);
+    html += "<td>" + std::string(sensor_name) + "</td>";
+    
+    // Статус
+    float value = this->get_analog_value(i);
+    html += "<td>";
+    if (!std::isnan(value)) {
+      html += "<span style='color:blue'>ACTIVE</span>";
+    } else {
+      html += "<span style='color:gray'>N/A</span>";
+    }
+    html += "</td>";
+    
+    // Значение
+    html += "<td>";
+    if (!std::isnan(value)) {
+      char value_str[16];
+      snprintf(value_str, sizeof(value_str), "%.2f", value);
+      html += value_str;
+    } else {
+      html += "N/A";
+    }
+    html += "</td>";
+    
+    html += "</tr>";
+  }
+  
+  // Завершаем таблицу
+  html += "</table>";
+  
+  // Отправляем HTML в Home Assistant
+  if (this->text_sensors_.size() > 6) {
+    this->set_text_value(6, html);
+  }
+}
+```
+
+### Пример 8: Отправка информации о последних командах
+
+```cpp
+void RelaySequencer::record_command(const std::string &command, bool success) {
+  // Храним информацию о последних командах
+  static std::vector<std::string> command_history;
+  static std::vector<bool> command_results;
+  static std::vector<uint32_t> command_timestamps;
+  
+  // Ограничиваем размер истории
+  const size_t MAX_HISTORY = 10;
+  if (command_history.size() >= MAX_HISTORY) {
+    command_history.erase(command_history.begin());
+    command_results.erase(command_results.begin());
+    command_timestamps.erase(command_timestamps.begin());
+  }
+  
+  // Добавляем новую команду
+  command_history.push_back(command);
+  command_results.push_back(success);
+  command_timestamps.push_back(esphome::millis());
+  
+  // Формируем строку с историей команд
+  std::string history = "Command History:\n";
+  
+  for (size_t i = 0; i < command_history.size(); i++) {
+    // Индекс в обратном порядке, чтобы последние команды были вверху
+    size_t idx = command_history.size() - 1 - i;
+    
+    // Форматируем временную метку
+    uint32_t elapsed_ms = esphome::millis() - command_timestamps[idx];
+    char time_str[32];
+    
+    if (elapsed_ms < 60000) {
+      // Меньше минуты
+      snprintf(time_str, sizeof(time_str), "%d sec ago", elapsed_ms / 1000);
+    } else if (elapsed_ms < 3600000) {
+      // Меньше часа
+      snprintf(time_str, sizeof(time_str), "%d min ago", elapsed_ms / 60000);
+    } else {
+      // Больше часа
+      snprintf(time_str, sizeof(time_str), "%d h %d min ago", 
+               elapsed_ms / 3600000, (elapsed_ms % 3600000) / 60000);
+    }
+    
+    // Добавляем информацию о команде
+    char command_info[128];
+    snprintf(command_info, sizeof(command_info), "%s: %s [%s]\n", 
+             time_str, command_history[idx].c_str(), 
+             command_results[idx] ? "SUCCESS" : "FAILED");
+    
+    history += command_info;
+  }
+  
+  // Отправляем историю команд в Home Assistant
+  if (this->text_sensors_.size() > 7) {
+    this->set_text_value(7, history);
+  }
+}
+
+// Пример использования метода record_command
+void RelaySequencer::start_sequence() {
+  bool success = true;
+  
+  try {
+    this->sequence_running_ = true;
+    this->current_step_ = 0;
+    this->last_step_time_ = esphome::millis();
+    this->sequence_step(this->current_step_);
+  } catch (...) {
+    success = false;
+    ESP_LOGE(TAG, "Failed to start sequence");
+  }
+  
+  // Записываем команду в историю
+  this->record_command("Start Sequence", success);
+}
+
+void RelaySequencer::stop_sequence() {
+  bool success = true;
+  
+  try {
+    this->sequence_running_ = false;
+    
+    // Выключаем все реле
+    for (auto relay : this->relays_) {
+      relay->turn_off();
+    }
+  } catch (...) {
+    success = false;
+    ESP_LOGE(TAG, "Failed to stop sequence");
+  }
+  
+  // Записываем команду в историю
+  this->record_command("Stop Sequence", success);
+}
+```
+
+### Пример 9: Отправка статистики работы
+
+```cpp
+void RelaySequencer::update_statistics() {
+  // Счетчики для статистики
+  static uint32_t total_relay_switches = 0;
+  static uint32_t sequence_starts = 0;
+  static uint32_t sequence_stops = 0;
+  static uint32_t total_sequence_time = 0;
+  static uint32_t last_sequence_start = 0;
+  
+  // Обновляем счетчики на основе текущего состояния
+  static bool was_running = false;
+  
+  if (this->sequence_running_ && !was_running) {
+    // Последовательность только что запущена
+    sequence_starts++;
+    last_sequence_start = esphome::millis();
+    was_running = true;
+  } else if (!this->sequence_running_ && was_running) {
+    // Последовательность только что остановлена
+    sequence_stops++;
+    if (last_sequence_start > 0) {
+      total_sequence_time += (esphome::millis() - last_sequence_start) / 1000;
+    }
+    was_running = false;
+  }
+  
+  // Подсчитываем переключения реле
+  static std::vector<bool> last_relay_states;
+  if (last_relay_states.size() != this->relays_.size()) {
+    last_relay_states.resize(this->relays_.size(), false);
+  }
+  
+  for (size_t i = 0; i < this->relays_.size(); i++) {
+    bool current_state = this->is_relay_on(i);
+    if (current_state != last_relay_states[i]) {
+      total_relay_switches++;
+      last_relay_states[i] = current_state;
+    }
+  }
+  
+  // Формируем строку со статистикой
+  char statistics[256];
+  snprintf(statistics, sizeof(statistics), 
+           "Statistics:\n"
+           "- Total relay switches: %u\n"
+           "- Sequence starts: %u\n"
+           "- Sequence stops: %u\n"
+           "- Total sequence time: %u sec\n"
+           "- Average sequence duration: %.1f sec\n"
+           "- Current status: %s",
+           total_relay_switches, sequence_starts, sequence_stops, total_sequence_time,
+           sequence_stops > 0 ? (float)total_sequence_time / sequence_stops : 0.0f,
+           this->sequence_running_ ? "RUNNING" : "STOPPED");
+  
+  // Отправляем статистику в Home Assistant
+  if (this->text_sensors_.size() > 8) {
+    this->set_text_value(8, statistics);
+  }
+}
+```
+
+## 9. Расширенная YAML-конфигурация для всех примеров
+
+```yaml
+esphome:
+  name: relay_controller
+  platform: ESP32
+  board: esp32dev
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+ota:
+logger:
+
+# Текстовые сенсоры для получения строковых значений
+text_sensor:
+  - platform: template
+    name: "Status Message"
+    id: status_message
+    icon: "mdi:information"
+    
+  - platform: template
+    name: "Event Log"
+    id: event_log
+    icon: "mdi:text-box-multiple"
+    
+  - platform: template
+    name: "System Diagnostics"
+    id: system_diagnostics
+    icon: "mdi:memory"
+    
+  - platform: template
+    name: "JSON Data"
+    id: json_data
+    icon: "mdi:code-json"
+    
+  - platform: template
+    name: "Configuration Info"
+    id: config_info
+    icon: "mdi:cog"
+    
+  - platform: template
+    name: "Connected Devices"
+    id: connected_devices
+    icon: "mdi:devices"
+    
+  - platform: template
+    name: "HTML Status"
+    id: html_status
+    icon: "mdi:language-html5"
+    
+  - platform: template
+    name: "Command History"
+    id: command_history
+    icon: "mdi:history"
+    
+  - platform: template
+    name: "Statistics"
+    id: statistics
+    icon: "mdi:chart-line"
+
+# Обычные сенсоры
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    id: wifi_signal
+    update_interval: 60s
+    
+  - platform: uptime
+    name: "Uptime"
+    id: uptime
+    update_interval: 60s
+    filters:
+      - lambda: return x / 60.0; # Convert to minutes
+    unit_of_measurement: "min"
+
+# Реле
+switch:
+  - platform: gpio
+    name: "Relay 1"
+    id: relay_1
+    pin: GPIO16
+    
+  - platform: gpio
+    name: "Relay 2"
+    id: relay_2
+    pin: GPIO17
+    
+  - platform: gpio
+    name: "Relay 3"
+    id: relay_3
+    pin: GPIO18
+    
+  - platform: gpio
+    name:
+
+### USER
+продолжи вывод
+
+### ASSISTANT
+```yaml
+# Реле (продолжение)
+switch:
+  - platform: gpio
+    name: "Relay 1"
+    id: relay_1
+    pin: GPIO16
+    
+  - platform: gpio
+    name: "Relay 2"
+    id: relay_2
+    pin: GPIO17
+    
+  - platform: gpio
+    name: "Relay 3"
+    id: relay_3
+    pin: GPIO18
+    
+  - platform: gpio
+    name: "Relay 4"
+    id: relay_4
+    pin: GPIO19
+    
+  - platform: template
+    name: "Sequence Mode"
+    id: sequence_mode
+    optimistic: true
+
+# Кнопки для управления
+button:
+  - platform: template
+    name: "Update Statistics"
+    id: update_stats_button
+    on_press:
+      - lambda: 'id(my_sequencer).update_statistics();'
+      
+  - platform: template
+    name: "Send Diagnostics"
+    id: send_diagnostics_button
+    on_press:
+      - lambda: 'id(my_sequencer).send_diagnostic_info();'
+      
+  - platform: template
+    name: "Send JSON Data"
+    id: send_json_button
+    on_press:
+      - lambda: 'id(my_sequencer).send_json_data();'
+
+# Используем наш компонент с текстовыми сенсорами
+relay_sequencer:
+  id: my_sequencer
+  name: "Advanced Relay Controller"
+  control_switch: sequence_mode
+  relays:
+    - relay_1
+    - relay_2
+    - relay_3
+    - relay_4
+  
+  # Аналоговые сенсоры
+  analog_sensors:
+    - wifi_signal
+    - uptime
+  
+  # Текстовые сенсоры
+  text_sensors:
+    - status_message
+    - event_log
+    - system_diagnostics
+    - json_data
+    - config_info
+    - connected_devices
+    - html_status
+    - command_history
+    - statistics
+  
+  # Настройки компонента
+  sequence_interval: 2s
+  max_temperature: 50.0
+  min_temperature: 10.0
+  enable_logging: true
+  operation_mode: sequential
+  
+  # Метки для реле
+  relay_labels:
+    - "Main Pump"
+    - "Heater"
+    - "Fan"
+    - "Light"
+```
+
+## 10. Интеграция с Home Assistant
+
+После настройки текстовых сенсоров в ESPHome, вы можете использовать их в Home Assistant различными способами:
+
+### 1. Отображение в карточке Markdown
+
+```yaml
+type: markdown
+content: "{{ states('text_sensor.status_message') }}"
+title: Status Message
+```
+
+### 2. Отображение HTML-контента
+
+```yaml
+type: markdown
+content: "{{ states('text_sensor.html_status') | safe }}"
+title: Device Status
+```
+
+### 3. Отображение JSON-данных в виде таблицы
+
+```yaml
+type: custom:auto-entities
+card:
+  type: entities
+  title: Device Data
+filter:
+  template: |
+    {% set json_data = states('text_sensor.json_data') | from_json %}
+    {% for relay in json_data.relays %}
+      {{ {'entity': 'switch.relay_' ~ (relay.index + 1), 
+          'name': relay.label if relay.label is defined else 'Relay ' ~ (relay.index + 1),
+          'state_color': true} }}
+    {% endfor %}
+```
+
+### 4. Создание уведомлений на основе текстовых сенсоров
+
+```yaml
+automation:
+  - alias: "Error Message Notification"
+    trigger:
+      - platform: state
+        entity_id: text_sensor.error_message
+    condition:
+      - condition: template
+        value_template: "{{ states('text_sensor.error_message') != '' }}"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "Error on Relay Controller"
+          message: "{{ states('text_sensor.error_message') }}"
+```
+
+### 5. Создание карточки с историей команд
+
+```yaml
+type: custom:markdown-card
+content: |
+  # Command History
+  {{ states('text_sensor.command_history') | replace('\n', '<br>') }}
+```
+
+### 6. Создание панели мониторинга с использованием всех текстовых сенсоров
+
+```yaml
+type: vertical-stack
+cards:
+  - type: entities
+    title: Relay Controller Status
+    entities:
+      - entity: text_sensor.status_message
+        name: Status
+      - entity: switch.sequence_mode
+        name: Sequence Mode
+      - entity: sensor.wifi_signal
+        name: WiFi Signal
+      - entity: sensor.uptime
+        name: Uptime
+    
+  - type: markdown
+    title: Event Log
+    content: "{{ states('text_sensor.event_log') | replace('\n', '<br>') }}"
+    
+  - type: markdown
+    title: System Diagnostics
+    content: "{{ states('text_sensor.system_diagnostics') | replace('\n', '<br>') }}"
+    
+  - type: markdown
+    title: Statistics
+    content: "{{ states('text_sensor.statistics') | replace('\n', '<br>') }}"
+    
+  - type: horizontal-stack
+    cards:
+      - type: button
+        name: Update Statistics
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.update_stats_button
+            
+      - type: button
+        name: Send Diagnostics
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.send_diagnostics_button
+            
+      - type: button
+        name: Send JSON Data
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.send_json_button
+```
+
+## 11. Советы по эффективной работе с текстовыми данными
+
+1. **Структурированные данные**:
+   - Для сложных данных используйте структурированные форматы, такие как JSON.
+   - Это упрощает обработку данных в Home Assistant.
+
+2. **Форматирование для читаемости**:
+   - Используйте переносы строк (`\n`) и отступы для улучшения читаемости.
+   - В Home Assistant можно преобразовать `\n` в `<br>` для HTML-отображения.
+
+3. **Оптимизация памяти**:
+   - Для длинных строк используйте статические буферы фиксированного размера.
+   - Проверяйте размер строк перед их формированием, чтобы избежать переполнения буфера.
+
+4. **Обработка ошибок**:
+   - Используйте блоки try-catch при работе со строками, чтобы избежать сбоев.
+   - Проверяйте результаты функций, которые могут завершиться неудачно.
+
+5. **Кэширование**:
+   - Не формируйте одни и те же строки многократно, если они не изменились.
+   - Используйте флаги изменений для обновления только при необходимости.
+
+6. **Локализация**:
+   - Храните строки в константах или переменных для упрощения локализации.
+   - Рассмотрите возможность поддержки нескольких языков.
+
+7. **Безопасность**:
+   - Экранируйте специальные символы при формировании HTML или JSON.
+   - Не включайте конфиденциальную информацию в текстовые сенсоры.
+
+Используя эти рекомендации, вы сможете эффективно передавать строковые данные из вашего пользовательского компонента ESPHome в Home Assistant, обеспечивая богатый пользовательский интерфейс и расширенные возможности мониторинга и управления.
