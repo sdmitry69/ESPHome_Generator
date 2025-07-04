@@ -46,55 +46,8 @@ void GeneratorControl::setup()
   this->tEnginOnBegTime = 0;
   this->bEnginOn = false;
   this->tMotHrSave = iTime()+900; // запись в eeprom раз в 15 минут
+  this->set_output_value(GC_VAL_GAS_SET, 0);
 
-}
-
-void GeneratorControl::CheckMotoHrAndOil() 
-{
-  if( this->get_analog_value(GC_ADC_AI3)>10 ) // генератор заведен
-  {
-    if( !this->bEnginOn ) 
-    {
-      this->tEnginOnBegTime = iTime();
-      this->bEnginOn = true;
-      this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
-      this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
-    }
-    else
-    {
-      if( this->tEnginOnBegTime +60 < iTime() ) // раз в минуту наращиваем счетчики
-      {
-        this->tMotoHr += iTime() - this->tEnginOnBegTime;
-        this->tOilMin -= iTime() - this->tEnginOnBegTime;
-        if( this->tOilMin<0 ) this->tOilMin = 0;
-        this->tEnginOnBegTime = iTime();
-        this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60)); // передаем в минутах
-        this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
-        if( this->tMotHrSave < iTime() )
-        {
-          this->generator_motohr_eeprom.save(&this->tMotoHr);// моточасы  
-          this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
-    
-          this->tMotHrSave = iTime()+900; // запись в eeprom раз в 15 минут
-        }
-      }
-    }
-  }
-  else
-  {
-    if( this->bEnginOn ) 
-    {
-      this->tMotoHr += iTime() - this->tEnginOnBegTime;
-      this->tOilMin -= iTime() - this->tEnginOnBegTime;
-      this->tEnginOnBegTime = 0;
-      this->bEnginOn = false;
-      this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
-      this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
-      this->generator_motohr_eeprom.save(&this->tMotoHr);// моточасы  
-      this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
-    
-    }
-  }
 }
 
 void GeneratorControl::loop() 
@@ -103,6 +56,7 @@ void GeneratorControl::loop()
   bool current_control_state = this->control_switch_->state;
   bool current_control_ac = this->control_ac_->state;
 
+  this->CheckChangeFuelValue();
   this->CheckMotoHrAndOil();
 
   if( this->tsync_ha_flags<millis() )
@@ -155,6 +109,79 @@ void GeneratorControl::loop()
         this->val_timeout=((int)(this->twait_-millis())/1000);
         this->set_output_value(GC_VAL_TIMEOUT, (float)(this->val_timeout) );  
       }
+    }
+  }
+}
+
+
+void GeneratorControl::CheckChangeFuelValue()
+{
+  float value = this->get_output_value(GC_VAL_GAS_SET);
+  
+  if( value>0.1 )
+  {
+    this->tOilMin = value*60;
+    if( this->tOilMin>29794 ) this->tOilMin=29794;
+    this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
+    this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+    this->set_output_value(GC_VAL_GAS_SET, 0); 
+  }
+  else
+  if( value<-0.1 )
+  {
+    this->tOilMin += (-value)*60;
+    if( this->tOilMin>29794 ) this->tOilMin=29794;
+    this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
+    this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+    this->set_output_value(GC_VAL_GAS_SET, 0); 
+  }
+  
+}
+
+void GeneratorControl::CheckMotoHrAndOil() 
+{
+  if( this->get_analog_value(GC_ADC_AI3)>10 ) // генератор заведен
+  {
+    if( !this->bEnginOn ) 
+    {
+      this->tEnginOnBegTime = iTime();
+      this->bEnginOn = true;
+      this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
+      this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+    }
+    else
+    {
+      if( this->tEnginOnBegTime +60 < iTime() ) // раз в минуту наращиваем счетчики
+      {
+        this->tMotoHr += iTime() - this->tEnginOnBegTime;
+        this->tOilMin -= iTime() - this->tEnginOnBegTime;
+        if( this->tOilMin<0 ) this->tOilMin = 0;
+        this->tEnginOnBegTime = iTime();
+        this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60)); // передаем в минутах
+        this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+        if( this->tMotHrSave < iTime() )
+        {
+          this->generator_motohr_eeprom.save(&this->tMotoHr);// моточасы  
+          this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
+    
+          this->tMotHrSave = iTime()+900; // запись в eeprom раз в 15 минут
+        }
+      }
+    }
+  }
+  else
+  {
+    if( this->bEnginOn ) 
+    {
+      this->tMotoHr += iTime() - this->tEnginOnBegTime;
+      this->tOilMin -= iTime() - this->tEnginOnBegTime;
+      this->tEnginOnBegTime = 0;
+      this->bEnginOn = false;
+      this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
+      this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+      this->generator_motohr_eeprom.save(&this->tMotoHr);// моточасы  
+      this->generator_gas_eeprom.save(&this->tOilMin); // объем топлива
+    
     }
   }
 }
@@ -456,6 +483,13 @@ void GeneratorControl::set_output_value(size_t index, float value) {
   if (index < this->output_sensors_.size() && this->output_sensors_[index] != nullptr) {
     this->output_sensors_[index]->publish_state(value);
   }
+}
+
+float GeneratorControl::get_output_value(size_t index) const {
+  if (index < this->output_sensors_.size() && this->output_sensors_[index] != nullptr) {
+    return this->output_sensors_[index]->state;
+  }
+  return 0.0f;
 }
 
 

@@ -69,6 +69,7 @@
 #define GC_VAL_TIMEOUT              2
 #define GC_VAL_MOTOHR               3
 #define GC_VAL_GAS                  4
+#define GC_VAL_GAS_SET              5
 
 extern int generator_motohr_eeprom;
 extern int generator_gas_eeprom;
@@ -99,6 +100,7 @@ class GeneratorControl : public Component {
   
   // Метод для установки значения выходного датчика
   void set_output_value(size_t index, float value);
+  float get_output_value(size_t index) const;
   
   // Метод для программного нажатия кнопки
   void press_button(size_t index);
@@ -110,6 +112,7 @@ class GeneratorControl : public Component {
   bool is_binary_valid(size_t index) const;
 
   void CheckMotoHrAndOil();
+  void CheckChangeFuelValue();
   uint32_t iTime() { return millis()/1000; }
 
  protected:

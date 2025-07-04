@@ -15,6 +15,14 @@ api:
   encryption:
     key: "T9fa6qYlYyhYw6loe/eViMVUjRmOUL+ZUb6SkMgotIM="
 
+  services:
+    - service: update_gas_sensor  # Новый сервис
+      variables:
+        ha_value: float  # Принимаем параметр 
+      then:
+        - lambda: |-
+            id(generator_gas_set).publish_state(ha_value);
+
 ota:
   - platform: esphome
     password: "404cf524fc7aa17bb1a2bcac99fdba7b"
@@ -458,6 +466,13 @@ sensor:
     accuracy_decimals: 0
     unit_of_measurement: "мин"
     icon: "mdi:gas-station"
+  
+  - platform: template
+    name: "Generator Gas SET"
+    id: generator_gas_set
+    accuracy_decimals: 0
+    unit_of_measurement: "мин"
+    icon: "mdi:gas-station"
 
   - platform: template
     name: "Generator state switch"
@@ -469,6 +484,12 @@ sensor:
     update_interval: 1s
     unit_of_measurement: ""
     accuracy_decimals: 0
+
+    # Аналоговые датчики из Home Assistant
+  - platform: homeassistant
+    id: ha_fuel_fill
+    name: "Fuel setup data"
+    entity_id: input_number.fuel_fill
 
 binary_sensor:
   # Датчик контроля наличия связи с модулем PZEM modbus
@@ -553,7 +574,7 @@ button:
       - switch.turn_on: relay_5
       - delay: 500ms
       - switch.turn_off: relay_5
-  
+
 switch:
   - platform: gpio
     name: "Kincony fake switch"
@@ -609,7 +630,7 @@ switch:
       mode: OUTPUT
       inverted: true
           
-    # Виртуальный переключатель для активации последовательности
+    # Виртуальный переключатель 
   - platform: template
     name: "Внешнее управление генератором"
     id: sequence_mode
@@ -619,7 +640,8 @@ switch:
     name: "AC_On"
     id: generator_ac_on
     optimistic: true
-        
+
+      
 # Создаем глобальную переменную для отслеживания состояния
 globals:
   - id: sequence_running
@@ -649,6 +671,8 @@ generator_control:
     - kincony_ai2       # контроль напряжения аккумулятора 12v
     - kincony_ai3       # контроль запуска генератора по напряжению 12v
     - kincony_ai4
+    
+
   binary_sensors:
     - kc868_a6_in_1     # положение переключателя в Off 
     - kc868_a6_in_2     # положение переключателя в Авто
@@ -664,3 +688,4 @@ generator_control:
     - generator_timeout
     - generator_motohr
     - generator_gas
+    - generator_gas_set
