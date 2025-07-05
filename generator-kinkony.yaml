@@ -123,7 +123,7 @@ modbus_controller:
     address: 15
     modbus_id: modbus_client
     setup_priority: -10
-    update_interval: 10s  # Опрашивать устройство каждые 10 секунд
+    update_interval: 5s  # Опрашивать устройство каждые 10 секунд
     on_online:
       then:
         - logger.log: "Sinotimer Controller back online!"
@@ -146,6 +146,17 @@ modbus_controller:
         - logger.log: "Gen Temperature Controller goes offline!"
         - lambda: |-
             ESP_LOGI("","Lambda offline message. function_code=%d, address=%d",function_code,address);
+
+globals:
+  - id: sequence_running
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  - id: generator_total_power_save
+    type: float
+    restore_value: yes
+    initial_value: '391.0'
 
 sensor:
   - platform: modbus_controller
@@ -173,12 +184,13 @@ sensor:
            
   - platform: modbus_controller
     modbus_controller_id: modbus_sinotimer
-    name: sinotimer_voltage
-    id: sinotimer_voltage
+    name: sinotimer_voltage_
+    id: sinotimer_voltage_
     register_type: read
     address: 0
     value_type: FP32
     unit_of_measurement: "V"
+    icon: "mdi:sine-wave"
     accuracy_decimals: 1
     filters:
       - multiply: 1
@@ -187,16 +199,24 @@ sensor:
           send_every: 4
           send_first_at: 3
           quantile: 0.9
+
+  - platform: template
+    name: "Generator Voltage"
+    id: generator_voltage
+    accuracy_decimals: 1
+    unit_of_measurement: "V"
+    icon: "mdi:sine-wave"
     lambda: |-
-      if( id(modbus_sinotimer).get_module_offline() )
-        return 0;
+      if (id(sinotimer_valid).state) 
+        return id(sinotimer_voltage_).state;
       else
-        return x ;
+        return 0;
+    update_interval: 10s  # Обновление каждые 10 секунд
 
   - platform: modbus_controller
     modbus_controller_id: modbus_sinotimer
-    name: sinotimer_current
-    id: sinotimer_current
+    name: sinotimer_current_
+    id: sinotimer_current_
     register_type: read
     address: 0x0008
     value_type: FP32
@@ -209,16 +229,24 @@ sensor:
           send_every: 4
           send_first_at: 3
           quantile: 0.9
+
+  - platform: template
+    name: "Generator Current"
+    id: generator_current
+    accuracy_decimals: 2
+    unit_of_measurement: "A"
+    icon: "mdi:sine-wave"
     lambda: |-
-      if( id(modbus_sinotimer).get_module_offline() )
-        return 0;
+      if (id(sinotimer_valid).state) 
+        return id(sinotimer_current_).state;
       else
-        return x ;
+        return 0;
+    update_interval: 10s  # Обновление каждые 10 секунд
 
   - platform: modbus_controller
     modbus_controller_id: modbus_sinotimer
-    name: sinotimer_freq
-    id: sinotimer_freq
+    name: sinotimer_freq_
+    id: sinotimer_freq_
     register_type: read
     address: 0x0036
     value_type: FP32
@@ -231,16 +259,24 @@ sensor:
           send_every: 4
           send_first_at: 3
           quantile: 0.9
+
+  - platform: template
+    name: "Generator Freq"
+    id: generator_freq
+    accuracy_decimals: 1
+    unit_of_measurement: "Hz"
+    icon: "mdi:sine-wave"
     lambda: |-
-      if( id(modbus_sinotimer).get_module_offline() )
-        return 0;
+      if (id(sinotimer_valid).state) 
+        return id(sinotimer_freq_).state;
       else
-        return x ;
+        return 0;
+    update_interval: 10s  # Обновление каждые 10 секунд
   
   - platform: modbus_controller
     modbus_controller_id: modbus_sinotimer
-    name: sinotimer_power
-    id: sinotimer_power
+    name: sinotimer_power_
+    id: sinotimer_power_
     register_type: read
     address: 0x0012
     value_type: FP32
@@ -253,16 +289,25 @@ sensor:
           send_every: 4
           send_first_at: 3
           quantile: 0.9
+
+  - platform: template
+    name: "Generator power"
+    id: generator_power
+    accuracy_decimals: 1
+    unit_of_measurement: "W"
+    icon: "mdi:sine-wave"
     lambda: |-
-      if( id(modbus_sinotimer).get_module_offline() )
-        return 0;
+      if (id(sinotimer_valid).state) 
+        return id(sinotimer_power_).state;
       else
-        return x ;
+        return 0;
+    update_interval: 10s  # Обновление каждые 10 секунд
+  
   
   - platform: modbus_controller
     modbus_controller_id: modbus_sinotimer
-    name: sinotimer_total_power
-    id: sinotimer_total_power
+    name: sinotimer_total_power_
+    id: sinotimer_total_power_
     register_type: read
     address: 0x0100
     value_type: FP32
@@ -275,19 +320,26 @@ sensor:
           send_every: 4
           send_first_at: 3
           quantile: 0.9
-    lambda: |-
-      if( id(modbus_sinotimer).get_module_offline() )
-        return 0;
-      else
-        return x ;
-          
-  - platform: template
-    name: kincony_test_sensor
-    id: kincony_test_sensor
-    #lambda: |-
-    #  return id(pzem_data).state;
-    update_interval: 10s
 
+  - platform: template
+    name: "Generator total power"
+    id: sinotimer_total_power
+    accuracy_decimals: 1
+    unit_of_measurement: "kWh"
+    icon: "mdi:sine-wave"
+    lambda: |-
+      if (id(sinotimer_valid).state) 
+      { 
+        if( id(generator_total_power_save) != id(sinotimer_total_power_).state )
+        {
+          id(generator_total_power_save) = id(sinotimer_total_power_).state;
+        }
+        return id(sinotimer_total_power_).state;
+      }
+      else
+        return id(generator_total_power_save);
+    update_interval: 10s  # Обновление каждые 10 секунд
+           
     
   - platform: dallas_temp
     #one_wire_id: oneWire_IO1
@@ -492,10 +544,10 @@ sensor:
     entity_id: input_number.fuel_fill
 
 binary_sensor:
-  # Датчик контроля наличия связи с модулем PZEM modbus
+  # Датчик контроля наличия связи с модулем sinotimer  modbus
   - platform: template
     name: "sinotimer_valid"
-    id: pzem_valid
+    id: sinotimer_valid
     lambda: |-
       if( id(modbus_sinotimer).get_module_offline() )
         return false;
@@ -641,13 +693,7 @@ switch:
     id: generator_ac_on
     optimistic: true
 
-      
-# Создаем глобальную переменную для отслеживания состояния
-globals:
-  - id: sequence_running
-    type: bool
-    restore_value: no
-    initial_value: 'false'
+       
       
       
 # Используем наш компонент с прямой конфигурацией
@@ -681,6 +727,7 @@ generator_control:
     - kc868_a6_in_5     # заслонка закрыта
     - kc868_a6_in_6     # заслонка открыта
     - ha_voltage380_flag  # флаг нормальности сетевого напряжения 
+    - sinotimer_valid
 
   output_sensors:
     - generator_regime
@@ -689,3 +736,8 @@ generator_control:
     - generator_motohr
     - generator_gas
     - generator_gas_set
+    - generator_voltage
+    - generator_current
+    - generator_freq
+    - generator_power
+  

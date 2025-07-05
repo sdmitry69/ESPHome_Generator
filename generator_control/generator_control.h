@@ -63,6 +63,7 @@
 #define GC_IN5                      4
 #define GC_IN6                      5
 #define GC_IN_AC_CTRL               6
+#define GC_IN_SINOTIMER             7
 
 #define GC_VAL_REGIME               0
 #define GC_VAL_REGSTEP              1
@@ -70,6 +71,11 @@
 #define GC_VAL_MOTOHR               3
 #define GC_VAL_GAS                  4
 #define GC_VAL_GAS_SET              5
+#define GC_VAL_GAS_VOLT             6
+#define GC_VAL_GAS_CURRENT          7
+#define GC_VAL_GAS_FREQ             8
+#define GC_VAL_GAS_POWER            9
+
 
 extern int generator_motohr_eeprom;
 extern int generator_gas_eeprom;
