@@ -71,10 +71,12 @@
 #define GC_VAL_MOTOHR               3
 #define GC_VAL_GAS                  4
 #define GC_VAL_GAS_SET              5
-#define GC_VAL_GAS_VOLT             6
-#define GC_VAL_GAS_CURRENT          7
-#define GC_VAL_GAS_FREQ             8
-#define GC_VAL_GAS_POWER            9
+#define GC_VAL_VOLT                 6
+#define GC_VAL_CURRENT              7
+#define GC_VAL_FREQ                 8
+#define GC_VAL_POWER                9
+#define GC_VAL_TOTALPOWER           10
+#define GC_VAL_TOTALPOWER_SAVE      11
 
 
 extern int generator_motohr_eeprom;
@@ -137,6 +139,7 @@ class GeneratorControl : public Component {
 
   ESPPreferenceObject  generator_motohr_eeprom;
   ESPPreferenceObject  generator_gas_eeprom;
+  ESPPreferenceObject  generator_total_power_eeprom;
   
   std::vector<sensor::Sensor *> analog_sensors_;
   std::vector<binary_sensor::BinarySensor *> binary_sensors_;
@@ -159,8 +162,9 @@ class GeneratorControl : public Component {
   int restart{0};
   int val_timeout{0};
 
-  uint32_t  tMotoHr{0};         // моточасы  
-  uint32_t  tOilMin{30600};     // объем топлива в секундах полный бак на 8.5 часов 
+  int  tMotoHr{0};         // моточасы  
+  int  tOilMin{30600};     // объем топлива в секундах полный бак на 8.5 часов 
+  int  nTotalPower{0};     // потреблено от генератора 
 
   uint32_t  tEnginOnBegTime{0};
   bool      bEnginOn{false};

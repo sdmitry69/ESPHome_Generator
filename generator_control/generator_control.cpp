@@ -18,14 +18,16 @@ void GeneratorControl::setup()
   this->set_output_value(GC_VAL_REGIME, (float)this->current_regime_);
   this->set_output_value(GC_VAL_REGSTEP, (float)this->current_step_);
   this->set_output_value(GC_VAL_TIMEOUT, (float)0 );
-  this->tsync_ha_flags=millis()+15000; // опрос через 15 секунд
+  this->tsync_ha_flags=millis()+30000; // опрос через 30 секунд
 
   // инициализация переменных  EEPROM
   this->generator_motohr_eeprom = global_preferences->make_preference<int>(++generator_counter ^ 0x1234567);
   this->generator_gas_eeprom = global_preferences->make_preference<int>(++generator_counter ^ 0x7654321);
+  this->generator_total_power_eeprom = global_preferences->make_preference<int>(++generator_counter ^ 0x7654321);
 
   this->generator_motohr_eeprom.load(&this->tMotoHr);
   this->generator_gas_eeprom.load(&this->tOilMin);
+  this->generator_total_power_eeprom.load(&this->nTotalPower);
 
   /* первичная установка значений
   if( this->tMotoHr==118*60 ) 
@@ -40,14 +42,23 @@ void GeneratorControl::setup()
     this->generator_gas_eeprom.save(&this->tOilMin);
   }*/
 
+  if(0) // первичная установка значений
+  {
+    this->nTotalPower = 391;
+    this->generator_total_power_eeprom.save(&this->nTotalPower);
+  }
+
   this->set_output_value(GC_VAL_MOTOHR, (float)(this->tMotoHr/60));
   this->set_output_value(GC_VAL_GAS, (float)(this->tOilMin/60));
+  this->set_output_value(GC_VAL_TOTALPOWER_SAVE, (float)(this->nTotalPower));
 
   this->tEnginOnBegTime = 0;
   this->bEnginOn = false;
   this->tMotHrSave = iTime()+900; // запись в eeprom раз в 15 минут
   this->set_output_value(GC_VAL_GAS_SET, 0);
 
+  if( this->last_control_ac_ )  { this->start_sequence_ac_ok(); }   // Флаг установлен - запускаем последовательность нормального напряжения
+  else                          { this->start_sequence_ac_fail(); } // Флаг сброшен - запускаем последовательность включения генератора
 }
 
 void GeneratorControl::loop() 
@@ -55,12 +66,20 @@ void GeneratorControl::loop()
     
   bool current_control_state = this->control_switch_->state;
   bool current_control_ac = this->control_ac_->state;
+  int  nTotalPowerVal = (int)this->get_output_value(GC_VAL_TOTALPOWER);
 
   this->CheckChangeFuelValue();
   this->CheckMotoHrAndOil();
 
   if( this->tsync_ha_flags<millis() )
   {
+    if( nTotalPowerVal!=this->nTotalPower && nTotalPowerVal!=0 )
+    {
+      this->nTotalPower = nTotalPowerVal;
+      this->generator_total_power_eeprom.save(&this->nTotalPower);
+      this->set_output_value(GC_VAL_TOTALPOWER_SAVE, (float)(this->nTotalPower));
+    }
+
     if( this->is_binary_valid(GC_IN_AC_CTRL) )
     {
       if( this->get_binary_value(GC_IN_AC_CTRL) ) this->control_ac_->turn_on();
@@ -86,7 +105,7 @@ void GeneratorControl::loop()
     this->last_control_ac_ = current_control_ac;
 
     if( current_control_ac )  { this->start_sequence_ac_ok(); }   // Флаг установлен - запускаем последовательность нормального напряжения
-    else                      { this->start_sequence_ac_fail(); } // Флаг сброшен - запускаем последовательность выключения генератора
+    else                      { this->start_sequence_ac_fail(); } // Флаг сброшен - запускаем последовательность включения генератора
   }
     
   // Если последовательность запущена, проверяем время для следующего шага
