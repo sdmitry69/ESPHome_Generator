@@ -59,6 +59,7 @@ void GeneratorControl::setup()
 
   if( this->last_control_ac_ )  { this->start_sequence_ac_ok(); }   // Флаг установлен - запускаем последовательность нормального напряжения
   else                          { this->start_sequence_ac_fail(); } // Флаг сброшен - запускаем последовательность включения генератора
+
 }
 
 void GeneratorControl::loop() 
